@@ -7,6 +7,7 @@
     "schema_version",
     "summary",
     "settings",
+    "notices",
     "run_metadata",
     "detectors",
     "base_metrics",
@@ -37,20 +38,38 @@
       "required": [
         "min_churn_threshold",
         "include_authors",
+        "include_repo_path",
+        "include_commit_messages",
         "max_commits",
         "max_files_per_commit",
         "timeout_seconds",
         "top_actions",
+        "large_commit_strategy",
         "use_default_ignores"
       ],
       "properties": {
         "min_churn_threshold": {"type": "integer", "minimum": 1},
         "include_authors": {"type": "boolean"},
+        "include_repo_path": {"type": "boolean"},
+        "include_commit_messages": {"type": "boolean"},
         "max_commits": {"type": "integer", "minimum": 1},
         "max_files_per_commit": {"type": "integer", "minimum": 2},
         "timeout_seconds": {"type": "integer", "minimum": 1},
         "top_actions": {"type": "integer", "minimum": 1},
+        "large_commit_strategy": {"type": "string", "enum": ["cap", "skip"]},
         "use_default_ignores": {"type": "boolean"}
+      }
+    },
+    "notices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["code", "message"],
+        "properties": {
+          "code": {"type": "string"},
+          "message": {"type": "string"}
+        }
       }
     },
     "run_metadata": {
@@ -114,7 +133,7 @@
         "temporal_coupling": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["pairs", "skipped_large_commits", "max_files_per_commit"],
+          "required": ["pairs", "skipped_large_commits", "capped_large_commits", "max_files_per_commit"],
           "properties": {
             "pairs": {
               "type": "array",
@@ -149,6 +168,7 @@
               }
             },
             "skipped_large_commits": {"type": "integer", "minimum": 0},
+            "capped_large_commits": {"type": "integer", "minimum": 0},
             "max_files_per_commit": {"type": "integer", "minimum": 2}
           }
         },

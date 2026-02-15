@@ -21,6 +21,13 @@ Outputs:
 - `archaeology.json`
 - `archaeology_report.md`
 
+Safety / privacy flags:
+- `--include-repo-path` (opt-in) include full repo path in `summary.repo_path` (default: basename only).
+- `--include-commit-messages` (opt-in) include sanitized commit messages in outputs (default: redacted).
+
+Signal-quality controls:
+- `--large-commit-strategy {cap,skip}` for temporal coupling on commits that touch more than `--max-files-per-commit` files (default: `cap`).
+
 ## Contract highlights
 - deterministic ordering
 - explicit overwrite gate (`--force`)

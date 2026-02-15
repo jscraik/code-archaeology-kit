@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import fnmatch
 import json
+import os
 import re
 import subprocess
 import time
@@ -37,6 +38,20 @@ LOW_VALUE_ABANDONED_GLOBS = [
 
 class ArchaeologyError(Exception):
     """Raised for CLI contract and runtime failures."""
+
+def _terminate_process(proc: subprocess.Popen[str]) -> None:
+    try:
+        proc.terminate()
+        proc.wait(timeout=2)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
+
+
+def _notice(code: str, message: str) -> dict[str, str]:
+    return {"code": code, "message": message}
 
 
 def sanitize(value: str, max_len: int = 400) -> str:
@@ -109,65 +124,92 @@ def parse_git_log(
         "--pretty=format:%H|%ai|%an|%ae|%s",
         "--numstat",
     ]
-    lines = run_git(cmd, timeout_seconds).split("\n")
 
     commits: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
     truncated = False
 
-    for line in lines:
-        if not line:
-            continue
+    start = time.time()
+    try:
+        proc: subprocess.Popen[str] = subprocess.Popen(  # pyright: ignore[reportUnknownMemberType]
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+    except FileNotFoundError as exc:
+        raise ArchaeologyError("git not found") from exc
 
-        if "|" in line and not line.startswith("\t"):
-            if current and current["files"]:
-                commits.append(current)
-                if len(commits) >= max_commits:
-                    truncated = True
-                    break
+    assert proc.stdout is not None
+    assert proc.stderr is not None
 
-            parts = line.split("|", 4)
-            if len(parts) < 5:
+    try:
+        for raw_line in proc.stdout:
+            if time.time() - start > timeout_seconds:
+                _terminate_process(proc)
+                raise ArchaeologyError(f"git timed out after {timeout_seconds}s")
+
+            line = raw_line.rstrip("\n")
+            if not line:
                 continue
 
-            parsed_date: datetime | None = None
-            date_str = parts[1]
-            try:
-                parsed_date = datetime.strptime(parts[1], "%Y-%m-%d %H:%M:%S %z")
-                date_str = parsed_date.isoformat()
-            except ValueError:
-                pass
+            if "|" in line and not line.startswith("\t"):
+                if current and current["files"]:
+                    commits.append(current)
+                    if len(commits) >= max_commits:
+                        truncated = True
+                        _terminate_process(proc)
+                        break
 
-            current = {
-                "hash": parts[0],
-                "date": date_str,
-                "author_name": sanitize(parts[2]),
-                "author_email": sanitize(parts[3]),
-                "message": sanitize(parts[4]),
-                "files": [],
-            }
-            if parsed_date is not None:
-                current["date_obj"] = parsed_date
-            continue
+                parts = line.split("|", 4)
+                if len(parts) < 5:
+                    continue
 
-        if current is None:
-            continue
+                parsed_date: datetime | None = None
+                date_str = parts[1]
+                try:
+                    parsed_date = datetime.strptime(parts[1], "%Y-%m-%d %H:%M:%S %z")
+                    date_str = parsed_date.isoformat()
+                except ValueError:
+                    pass
 
-        m = re.match(r"^(\d+|-)\t(\d+|-)\t(.+)$", line)
-        if not m:
-            continue
+                current = {
+                    "hash": parts[0],
+                    "date": date_str,
+                    "author_name": sanitize(parts[2]),
+                    "author_email": sanitize(parts[3]),
+                    "message": sanitize(parts[4]),
+                    "files": [],
+                }
+                if parsed_date is not None:
+                    current["date_obj"] = parsed_date
+                continue
 
-        file_path = sanitize(normalize_path(m.group(3)), 800)
-        if matches_any(file_path, ignore_globs):
-            continue
+            if current is None:
+                continue
 
-        current["files"].append(
-            {
-                "path": file_path,
-                "additions": 0 if m.group(1) == "-" else int(m.group(1)),
-                "deletions": 0 if m.group(2) == "-" else int(m.group(2)),
-            }
-        )
+            m = re.match(r"^(\d+|-)\t(\d+|-)\t(.+)$", line)
+            if not m:
+                continue
+
+            file_path = sanitize(normalize_path(m.group(3)), 800)
+            if matches_any(file_path, ignore_globs):
+                continue
+
+            current["files"].append(
+                {
+                    "path": file_path,
+                    "additions": 0 if m.group(1) == "-" else int(m.group(1)),
+                    "deletions": 0 if m.group(2) == "-" else int(m.group(2)),
+                }
+            )
+    finally:
+        if proc.poll() is None:
+            _terminate_process(proc)
+
+    stderr = sanitize(proc.stderr.read() or "")
+    if proc.returncode not in (0, None) and not truncated:
+        raise ArchaeologyError(stderr or "git failed")
 
     if not truncated and current and current["files"]:
         commits.append(current)
@@ -260,10 +302,12 @@ def temporal_coupling(
     commits: list[dict[str, Any]],
     min_co_changes: int,
     max_files_per_commit: int,
+    large_commit_strategy: str,
 ) -> dict[str, Any]:
     pair_counts: dict[tuple[str, str], int] = defaultdict(int)
     file_counts: dict[str, int] = defaultdict(int)
     skipped = 0
+    capped = 0
 
     for commit in commits:
         files = sorted({f["path"] for f in commit["files"]})
@@ -276,8 +320,11 @@ def temporal_coupling(
             file_counts[file_path] += 1
 
         if len(files) > max_files_per_commit:
-            skipped += 1
-            continue
+            if large_commit_strategy == "skip":
+                skipped += 1
+                continue
+            capped += 1
+            files = files[:max_files_per_commit]
 
         for idx, left in enumerate(files):
             for right in files[idx + 1 :]:
@@ -322,6 +369,7 @@ def temporal_coupling(
     return {
         "pairs": pairs[:50],
         "skipped_large_commits": skipped,
+        "capped_large_commits": capped,
         "max_files_per_commit": max_files_per_commit,
     }
 
@@ -368,7 +416,7 @@ def era_segmentation(commits: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return out
 
 
-def compute_base_metrics(commits: list[dict[str, Any]], include_authors: bool) -> dict[str, Any]:
+def compute_base_metrics(commits: list[dict[str, Any]], include_authors: bool, include_commit_messages: bool) -> dict[str, Any]:
     file_churn = defaultdict(int)
     file_growth = defaultdict(int)
     commit_themes: dict[str, int] = defaultdict(int)
@@ -427,7 +475,12 @@ def compute_base_metrics(commits: list[dict[str, Any]], include_authors: bool) -
         ],
         "commit_themes": dict(sorted(commit_themes.items(), key=lambda item: (-item[1], item[0]))),
         "recent_refactors": [
-            {"message": commit["message"], "date": commit["date"]}
+            {
+                "commit": commit["hash"],
+                "date": commit["date"],
+                "message": commit["message"] if include_commit_messages else "<redacted>",
+                "message_redacted": not include_commit_messages,
+            }
             for commit in commits
             if "refactor" in commit["message"].lower()
         ][:20],
@@ -512,6 +565,7 @@ def render_report(payload: dict[str, Any]) -> str:
     summary = payload["summary"]
     ignore_rules = payload["run_metadata"]["ignore_rules_applied"]
     top_actions = payload["actionability"]["top_actions"]
+    notices = payload.get("notices", [])
 
     lines = [
         "# Code Archaeology Report",
@@ -523,9 +577,20 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- Total commits: {summary['total_commits']}",
         f"- Generated (UTC): {summary['generated_at_utc']}",
         "",
+        "## Notices",
+    ]
+
+    if notices:
+        for notice in notices:
+            lines.append(f"- `{notice.get('code', 'NOTICE')}`: {notice.get('message', '')}")
+    else:
+        lines.append("- (none)")
+
+    lines.extend([
+        "",
         "## Signal Quality",
         "- Ignore rules applied:",
-    ]
+    ])
 
     for rule in ignore_rules:
         lines.append(f"  - `{rule}`")
@@ -586,6 +651,8 @@ def analyze_repo(
     since_days: int,
     min_churn_threshold: int,
     include_authors: bool,
+    include_repo_path: bool,
+    include_commit_messages: bool,
     timeout_seconds: int,
     max_commits: int,
     max_files_per_commit: int,
@@ -593,6 +660,7 @@ def analyze_repo(
     ignore_globs: list[str] | None = None,
     use_default_ignores: bool = True,
     top_actions: int = 3,
+    large_commit_strategy: str = "cap",
 ) -> dict[str, Any]:
     if since_days < 1:
         raise ArchaeologyError("--since-days must be >= 1")
@@ -604,6 +672,8 @@ def analyze_repo(
         raise ArchaeologyError("--max-files-per-commit must be >= 2")
     if top_actions < 1:
         raise ArchaeologyError("--top-actions must be >= 1")
+    if large_commit_strategy not in {"cap", "skip"}:
+        raise ArchaeologyError("--large-commit-strategy must be one of: cap, skip")
 
     repo_path = repo.expanduser().resolve()
     if not repo_path.exists() or not repo_path.is_dir() or not (repo_path / ".git").exists():
@@ -626,10 +696,49 @@ def analyze_repo(
     )
     head = run_git(["git", "-C", str(repo_path), "rev-parse", "HEAD"], timeout_seconds).strip()
 
+    temporal = temporal_coupling(commits, max(2, min_churn_threshold), max_files_per_commit, large_commit_strategy)
+
+    notices: list[dict[str, str]] = []
+    if truncated:
+        notices.append(
+            _notice(
+                "TRUNCATED_COMMITS",
+                f"Commit parsing stopped at max_commits={max_commits}; results may be incomplete.",
+            )
+        )
+    if not include_repo_path:
+        notices.append(
+            _notice(
+                "REPO_PATH_REDACTED",
+                "summary.repo_path is redacted to basename by default (use --include-repo-path to include full path).",
+            )
+        )
+    if not include_commit_messages:
+        notices.append(
+            _notice(
+                "COMMIT_MESSAGES_REDACTED",
+                "Commit messages are redacted by default (use --include-commit-messages to include sanitized messages).",
+            )
+        )
+    if large_commit_strategy == "cap" and temporal.get("capped_large_commits", 0) > 0:
+        notices.append(
+            _notice(
+                "TEMPORAL_COUPLING_CAPPED",
+                f"Temporal coupling capped {temporal['capped_large_commits']} commit(s) to max_files_per_commit={max_files_per_commit}.",
+            )
+        )
+    if large_commit_strategy == "skip" and temporal.get("skipped_large_commits", 0) > 0:
+        notices.append(
+            _notice(
+                "TEMPORAL_COUPLING_SKIPPED",
+                f"Temporal coupling skipped {temporal['skipped_large_commits']} commit(s) with > max_files_per_commit={max_files_per_commit}.",
+            )
+        )
+
     payload: dict[str, Any] = {
-        "schema_version": "1.1.0",
+        "schema_version": "1.2.0",
         "summary": {
-            "repo_path": str(repo_path),
+            "repo_path": str(repo_path) if include_repo_path else repo_path.name,
             "head_commit": head,
             "generated_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
             "since_days": since_days,
@@ -638,12 +747,16 @@ def analyze_repo(
         "settings": {
             "min_churn_threshold": min_churn_threshold,
             "include_authors": include_authors,
+            "include_repo_path": include_repo_path,
+            "include_commit_messages": include_commit_messages,
             "max_commits": max_commits,
             "max_files_per_commit": max_files_per_commit,
             "timeout_seconds": timeout_seconds,
             "top_actions": top_actions,
             "use_default_ignores": use_default_ignores,
+            "large_commit_strategy": large_commit_strategy,
         },
+        "notices": notices,
         "run_metadata": {
             "tool": "cak scan",
             "tool_version": version,
@@ -654,10 +767,10 @@ def analyze_repo(
         },
         "detectors": {
             "abandoned_structures": abandoned_structures(commits, min_churn_threshold),
-            "temporal_coupling": temporal_coupling(commits, max(2, min_churn_threshold), max_files_per_commit),
+            "temporal_coupling": temporal,
             "era_segmentation": era_segmentation(commits),
         },
-        "base_metrics": compute_base_metrics(commits, include_authors),
+        "base_metrics": compute_base_metrics(commits, include_authors, include_commit_messages),
         "dig_plan": [],
         "actionability": {"top_actions": []},
         "errors": [],
@@ -679,18 +792,38 @@ def write_payload(payload: dict[str, Any], output_dir: Path, fmt: str, force: bo
     json_path = output / "archaeology.json"
     md_path = output / "archaeology_report.md"
 
+    def atomic_write(path: Path, content: str) -> None:
+        tmp_path = path.with_name(f"{path.name}.tmp.{os.getpid()}")
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            try:
+                os.fsync(handle.fileno())
+            except OSError:
+                pass
+        tmp_path.replace(path)
+
+    json_content: str | None = None
+    md_content: str | None = None
+
     if fmt in {"json", "both"}:
         if json_path.exists() and not force:
             raise ArchaeologyError(f"Refusing overwrite: {json_path} (use --force)")
-        json_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        json_content = json.dumps(payload, indent=2)
     else:
         json_path = None
 
     if fmt in {"md", "both"}:
         if md_path.exists() and not force:
             raise ArchaeologyError(f"Refusing overwrite: {md_path} (use --force)")
-        md_path.write_text(render_report(payload), encoding="utf-8")
+        md_content = render_report(payload)
     else:
         md_path = None
+
+    # Write temps first, then replace, to reduce partial-final state when fmt="both".
+    if json_path is not None and json_content is not None:
+        atomic_write(json_path, json_content)
+    if md_path is not None and md_content is not None:
+        atomic_write(md_path, md_content)
 
     return json_path, md_path

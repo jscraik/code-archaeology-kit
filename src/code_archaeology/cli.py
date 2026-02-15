@@ -23,12 +23,28 @@ def main() -> int:
     scan.add_argument("--min-churn-threshold", type=int, default=3)
     scan.add_argument("--include-authors", action="store_true")
     scan.add_argument("--ack-pii", action="store_true")
+    scan.add_argument(
+        "--include-repo-path",
+        action="store_true",
+        help="Include the full resolved repo path in output (default: redacted to basename).",
+    )
+    scan.add_argument(
+        "--include-commit-messages",
+        action="store_true",
+        help="Include commit messages in output (default: redacted).",
+    )
     scan.add_argument("--ignore-glob", action="append", default=[], help="Glob pattern to exclude files from analysis (repeatable)")
     scan.add_argument("--no-ignore-defaults", action="store_true", help="Disable default ignore rules")
     scan.add_argument("--top-actions", type=int, default=3, help="Number of high-leverage actions in actionability output")
     scan.add_argument("--timeout-seconds", type=int, default=600)
     scan.add_argument("--max-commits", type=int, default=15000)
     scan.add_argument("--max-files-per-commit", type=int, default=40)
+    scan.add_argument(
+        "--large-commit-strategy",
+        choices=["cap", "skip"],
+        default="cap",
+        help="How to handle commits touching > --max-files-per-commit files for temporal coupling (default: cap).",
+    )
     scan.add_argument("--force", action="store_true")
     scan.add_argument("--json", action="store_true")
 
@@ -44,6 +60,8 @@ def main() -> int:
                 since_days=args.since_days,
                 min_churn_threshold=args.min_churn_threshold,
                 include_authors=args.include_authors,
+                include_repo_path=args.include_repo_path,
+                include_commit_messages=args.include_commit_messages,
                 timeout_seconds=args.timeout_seconds,
                 max_commits=args.max_commits,
                 max_files_per_commit=args.max_files_per_commit,
@@ -51,6 +69,7 @@ def main() -> int:
                 ignore_globs=args.ignore_glob,
                 use_default_ignores=not args.no_ignore_defaults,
                 top_actions=args.top_actions,
+                large_commit_strategy=args.large_commit_strategy,
             )
             json_path, md_path = write_payload(payload, args.output_dir, args.format, args.force)
         except ArchaeologyError as exc:
@@ -63,6 +82,7 @@ def main() -> int:
                 "schema": "cak.scan.v1",
                 "artifacts": {"json": str(json_path) if json_path else None, "markdown": str(md_path) if md_path else None},
                 "top_actions": payload.get("actionability", {}).get("top_actions", []),
+                "notices": payload.get("notices", []),
                 "errors": payload.get("errors", []),
             }, indent=2))
         else:
