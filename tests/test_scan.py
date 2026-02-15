@@ -16,6 +16,9 @@ def _init_repo(repo: Path) -> None:
     subprocess.run(["git", "-C", str(repo), "init"], check=True, capture_output=True, text=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test User"], check=True)
     subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+    # Test stability: disable any global commit signing hooks (e.g. 1Password/GPG) that can break in CI/headless runs.
+    subprocess.run(["git", "-C", str(repo), "config", "commit.gpgsign", "false"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "tag.gpgsign", "false"], check=True)
 
 
 def _commit(repo: Path, rel: str, content: str, message: str) -> None:
@@ -42,6 +45,7 @@ def test_scan_help() -> None:
     assert "--include-repo-path" in result.stdout
     assert "--include-commit-messages" in result.stdout
     assert "--large-commit-strategy" in result.stdout
+    assert "--share-snippet" in result.stdout
 
 
 def test_schema_valid_json() -> None:
@@ -77,6 +81,7 @@ def test_scan_generates_contract_and_top_actions(tmp_path: Path) -> None:
             "--format",
             "both",
             "--force",
+            "--share-snippet",
             "--json",
         ],
         cwd=root,
@@ -87,6 +92,9 @@ def test_scan_generates_contract_and_top_actions(tmp_path: Path) -> None:
     )
 
     assert result.returncode == 0, result.stderr
+    wrapper = json.loads(result.stdout)
+    assert wrapper["share"]["snippet_markdown"] is not None
+    assert wrapper["share"]["events_jsonl"] is not None
     payload = json.loads((out / "archaeology.json").read_text())
     assert payload["schema_version"] == "1.2.0"
     assert payload["summary"]["repo_path"] == "repo"
@@ -94,6 +102,8 @@ def test_scan_generates_contract_and_top_actions(tmp_path: Path) -> None:
     assert len(payload["actionability"]["top_actions"]) == 2
     assert "ignore_rules_applied" in payload["run_metadata"]
     assert (out / "archaeology_report.md").exists()
+    assert (out / "archaeology_share.md").exists()
+    assert (out / "archaeology_events.jsonl").exists()
 
 
 def test_redaction_defaults_and_include_flags(tmp_path: Path) -> None:
