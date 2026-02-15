@@ -636,6 +636,78 @@ def render_report(payload: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
+def render_share_snippet(payload: dict[str, Any]) -> str:
+    """Render a short, share-ready Markdown snippet for Slack/PR comments.
+
+    Privacy defaults:
+    - Uses payload["summary"]["repo_path"], which is basename-only unless --include-repo-path was set.
+    - Does not include commit messages.
+    """
+    summary = payload["summary"]
+    top_actions = payload.get("actionability", {}).get("top_actions", [])[:5]
+
+    pairs = payload.get("detectors", {}).get("temporal_coupling", {}).get("pairs", [])
+    coupling_counts: dict[str, int] = defaultdict(int)
+    for row in pairs:
+        coupling_counts[row.get("coupling_class", "unknown")] += 1
+
+    abandoned = payload.get("detectors", {}).get("abandoned_structures", [])
+
+    lines = [
+        "## Code Archaeology Snapshot",
+        f"- Repo: `{summary.get('repo_path', '')}`",
+        f"- Window: last {summary.get('since_days', '')} days",
+        f"- Head: `{str(summary.get('head_commit', ''))[:7]}`",
+        "",
+        "### Top actions",
+    ]
+
+    if top_actions:
+        for action in top_actions:
+            lines.append(f"- **{action['action']}** `{action['target']}` — {action['rationale']}")
+    else:
+        lines.append("- (none)")
+
+    lines.extend(
+        [
+            "",
+            "### Signals (counts)",
+            f"- Temporal coupling: suspicious={coupling_counts.get('suspicious', 0)}, risky={coupling_counts.get('risky', 0)}",
+            f"- Abandoned structures (top list size): {len(abandoned)}",
+            "",
+            "### Re-run",
+            "```bash",
+            f"cak scan --repo /path/to/repo --since-days {summary.get('since_days', 365)} --format both --output-dir ./artifacts",
+            "```",
+        ]
+    )
+
+    return "\n".join(lines) + "\n"
+
+
+def write_share_snippet(payload: dict[str, Any], output_dir: Path, force: bool) -> Path:
+    output = output_dir.expanduser().resolve()
+    output.mkdir(parents=True, exist_ok=True)
+
+    share_path = output / "archaeology_share.md"
+    if share_path.exists() and not force:
+        raise ArchaeologyError(f"Refusing overwrite: {share_path} (use --force)")
+
+    content = render_share_snippet(payload)
+
+    tmp_path = share_path.with_name(f"{share_path.name}.tmp.{os.getpid()}")
+    with tmp_path.open("w", encoding="utf-8") as handle:
+        handle.write(content)
+        handle.flush()
+        try:
+            os.fsync(handle.fileno())
+        except OSError:
+            pass
+    tmp_path.replace(share_path)
+
+    return share_path
+
+
 def _validate_payload_schema(payload: dict[str, Any], schema_path: Path) -> None:
     try:
         import jsonschema

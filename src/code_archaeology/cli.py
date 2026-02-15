@@ -2,11 +2,22 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 import sys
 from pathlib import Path
+from typing import Any
 
 from . import __version__
-from .analyze import ArchaeologyError, analyze_repo, write_payload
+from .analyze import ArchaeologyError, analyze_repo, write_payload, write_share_snippet
+
+
+def _append_event(output_dir: Path, event: dict[str, Any]) -> Path:
+    output = output_dir.expanduser().resolve()
+    output.mkdir(parents=True, exist_ok=True)
+    path = output / "archaeology_events.jsonl"
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+    return path
 
 
 def main() -> int:
@@ -20,6 +31,11 @@ def main() -> int:
     scan.add_argument("--since-days", type=int, default=365)
     scan.add_argument("--format", choices=["json", "md", "both"], default="both")
     scan.add_argument("--output-dir", type=Path, default=Path("."))
+    scan.add_argument(
+        "--share-snippet",
+        action="store_true",
+        help="Write a share-ready Markdown snippet (archaeology_share.md) plus a small local event log.",
+    )
     scan.add_argument("--min-churn-threshold", type=int, default=3)
     scan.add_argument("--include-authors", action="store_true")
     scan.add_argument("--ack-pii", action="store_true")
@@ -72,6 +88,21 @@ def main() -> int:
                 large_commit_strategy=args.large_commit_strategy,
             )
             json_path, md_path = write_payload(payload, args.output_dir, args.format, args.force)
+            share_path = None
+            events_path = None
+            if args.share_snippet:
+                share_path = write_share_snippet(payload, args.output_dir, args.force)
+                events_path = _append_event(
+                    args.output_dir,
+                    {
+                        "schema": "cak.events.v1",
+                        "name": "share_snippet_generated",
+                        "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                        "repo": payload.get("summary", {}).get("repo_path"),
+                        "since_days": payload.get("summary", {}).get("since_days"),
+                        "head": str(payload.get("summary", {}).get("head_commit", ""))[:7],
+                    },
+                )
         except ArchaeologyError as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
@@ -81,6 +112,10 @@ def main() -> int:
                 "ok": True,
                 "schema": "cak.scan.v1",
                 "artifacts": {"json": str(json_path) if json_path else None, "markdown": str(md_path) if md_path else None},
+                "share": {
+                    "snippet_markdown": str(share_path) if args.share_snippet and share_path else None,
+                    "events_jsonl": str(events_path) if args.share_snippet and events_path else None,
+                },
                 "top_actions": payload.get("actionability", {}).get("top_actions", []),
                 "notices": payload.get("notices", []),
                 "errors": payload.get("errors", []),
@@ -91,6 +126,8 @@ def main() -> int:
                 print(f"JSON: {json_path}")
             if md_path:
                 print(f"Report: {md_path}")
+            if args.share_snippet and share_path:
+                print(f"Share snippet: {share_path}")
         return 0
 
     return 2
