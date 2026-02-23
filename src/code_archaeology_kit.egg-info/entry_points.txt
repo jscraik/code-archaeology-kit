@@ -1,0 +1,2 @@
+[console_scripts]
+cak = code_archaeology.cli:main

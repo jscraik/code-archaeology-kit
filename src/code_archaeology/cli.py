@@ -9,6 +9,7 @@ from typing import Any
 
 from . import __version__
 from .analyze import ArchaeologyError, analyze_repo, write_payload, write_share_snippet
+from .diff import diff_reports
 
 
 def _append_event(output_dir: Path, event: dict[str, Any]) -> Path:
@@ -63,6 +64,11 @@ def main() -> int:
     )
     scan.add_argument("--force", action="store_true")
     scan.add_argument("--json", action="store_true")
+
+    diff_cmd = sub.add_parser("diff", help="Compare two local archaeology.json artifacts")
+    diff_cmd.add_argument("--old", type=Path, required=True, help="Path to the older archaeology.json")
+    diff_cmd.add_argument("--new", type=Path, required=True, help="Path to the newer archaeology.json")
+    diff_cmd.add_argument("--output", type=Path, default=Path("."), help="Directory to emit archaeology_diff.md")
 
     args = parser.parse_args()
 
@@ -129,5 +135,19 @@ def main() -> int:
             if args.share_snippet and share_path:
                 print(f"Share snippet: {share_path}")
         return 0
+
+    if args.command == "diff":
+        try:
+            diff_markdown = diff_reports(args.old, args.new)
+            out_dir = args.output.expanduser().resolve()
+            out_dir.mkdir(parents=True, exist_ok=True)
+            diff_path = out_dir / "archaeology_diff.md"
+            with diff_path.open("w", encoding="utf-8") as handle:
+                handle.write(diff_markdown)
+            print(f"Diff complete. Generated: {diff_path}")
+            return 0
+        except Exception as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
 
     return 2

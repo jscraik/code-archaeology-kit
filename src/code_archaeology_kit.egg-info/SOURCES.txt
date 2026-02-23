@@ -1,0 +1,14 @@
+LICENSE
+README.md
+pyproject.toml
+src/code_archaeology/__init__.py
+src/code_archaeology/__main__.py
+src/code_archaeology/analyze.py
+src/code_archaeology/cli.py
+src/code_archaeology_kit.egg-info/PKG-INFO
+src/code_archaeology_kit.egg-info/SOURCES.txt
+src/code_archaeology_kit.egg-info/dependency_links.txt
+src/code_archaeology_kit.egg-info/entry_points.txt
+src/code_archaeology_kit.egg-info/requires.txt
+src/code_archaeology_kit.egg-info/top_level.txt
+tests/test_scan.py

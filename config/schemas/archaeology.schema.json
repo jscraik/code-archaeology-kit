@@ -23,13 +23,34 @@
     "summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["repo_path", "head_commit", "generated_at_utc", "since_days", "total_commits"],
+      "required": [
+        "repo_path",
+        "head_commit",
+        "generated_at_utc",
+        "since_days",
+        "total_commits"
+      ],
       "properties": {
-        "repo_path": {"type": "string", "minLength": 1},
-        "head_commit": {"type": "string", "pattern": "^[a-f0-9]{7,40}$"},
-        "generated_at_utc": {"type": "string", "format": "date-time"},
-        "since_days": {"type": "integer", "minimum": 1},
-        "total_commits": {"type": "integer", "minimum": 0}
+        "repo_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "head_commit": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{7,40}$"
+        },
+        "generated_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "since_days": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "total_commits": {
+          "type": "integer",
+          "minimum": 0
+        }
       }
     },
     "settings": {
@@ -48,16 +69,45 @@
         "use_default_ignores"
       ],
       "properties": {
-        "min_churn_threshold": {"type": "integer", "minimum": 1},
-        "include_authors": {"type": "boolean"},
-        "include_repo_path": {"type": "boolean"},
-        "include_commit_messages": {"type": "boolean"},
-        "max_commits": {"type": "integer", "minimum": 1},
-        "max_files_per_commit": {"type": "integer", "minimum": 2},
-        "timeout_seconds": {"type": "integer", "minimum": 1},
-        "top_actions": {"type": "integer", "minimum": 1},
-        "large_commit_strategy": {"type": "string", "enum": ["cap", "skip"]},
-        "use_default_ignores": {"type": "boolean"}
+        "min_churn_threshold": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "include_authors": {
+          "type": "boolean"
+        },
+        "include_repo_path": {
+          "type": "boolean"
+        },
+        "include_commit_messages": {
+          "type": "boolean"
+        },
+        "max_commits": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_files_per_commit": {
+          "type": "integer",
+          "minimum": 2
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "top_actions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "large_commit_strategy": {
+          "type": "string",
+          "enum": [
+            "cap",
+            "skip"
+          ]
+        },
+        "use_default_ignores": {
+          "type": "boolean"
+        }
       }
     },
     "notices": {
@@ -65,10 +115,17 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "properties": {
-          "code": {"type": "string"},
-          "message": {"type": "string"}
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
         }
       }
     },
@@ -84,21 +141,39 @@
         "ignore_rules_applied"
       ],
       "properties": {
-        "tool": {"type": "string", "const": "cak scan"},
-        "tool_version": {"type": "string"},
-        "schema_path": {"type": "string"},
-        "truncated": {"type": "boolean"},
-        "runtime_ms": {"type": "integer", "minimum": 0},
+        "tool": {
+          "type": "string",
+          "const": "cak scan"
+        },
+        "tool_version": {
+          "type": "string"
+        },
+        "schema_path": {
+          "type": "string"
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "runtime_ms": {
+          "type": "integer",
+          "minimum": 0
+        },
         "ignore_rules_applied": {
           "type": "array",
-          "items": {"type": "string"}
+          "items": {
+            "type": "string"
+          }
         }
       }
     },
     "detectors": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["abandoned_structures", "temporal_coupling", "era_segmentation"],
+      "required": [
+        "abandoned_structures",
+        "temporal_coupling",
+        "era_segmentation"
+      ],
       "properties": {
         "abandoned_structures": {
           "type": "array",
@@ -116,24 +191,59 @@
               "confidence_explainer"
             ],
             "properties": {
-              "file": {"type": "string"},
+              "file": {
+                "type": "string"
+              },
               "path_class": {
                 "type": "string",
-                "enum": ["product", "test", "infra", "docs", "generated", "unknown"]
+                "enum": [
+                  "product",
+                  "test",
+                  "infra",
+                  "docs",
+                  "generated",
+                  "unknown"
+                ]
               },
-              "historical_commits": {"type": "integer", "minimum": 1},
-              "recent_commits": {"type": "integer", "minimum": 0},
-              "days_since_last_change": {"type": "integer", "minimum": 0},
-              "authors": {"type": "integer", "minimum": 0},
-              "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-              "confidence_explainer": {"type": "string"}
+              "historical_commits": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "recent_commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "days_since_last_change": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "authors": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "confidence": {
+                "type": "string",
+                "enum": [
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              "confidence_explainer": {
+                "type": "string"
+              }
             }
           }
         },
         "temporal_coupling": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["pairs", "skipped_large_commits", "capped_large_commits", "max_files_per_commit"],
+          "required": [
+            "pairs",
+            "skipped_large_commits",
+            "capped_large_commits",
+            "max_files_per_commit"
+          ],
           "properties": {
             "pairs": {
               "type": "array",
@@ -149,27 +259,68 @@
                   "coupling_ratio",
                   "coupling_class",
                   "confidence",
-                  "confidence_explainer"
+                  "confidence_explainer",
+                  "is_logically_coupled"
                 ],
                 "properties": {
-                  "file_a": {"type": "string"},
-                  "file_b": {"type": "string"},
-                  "class_a": {"type": "string"},
-                  "class_b": {"type": "string"},
-                  "co_change_commits": {"type": "integer", "minimum": 2},
-                  "coupling_ratio": {"type": "number", "minimum": 0, "maximum": 1},
+                  "file_a": {
+                    "type": "string"
+                  },
+                  "file_b": {
+                    "type": "string"
+                  },
+                  "class_a": {
+                    "type": "string"
+                  },
+                  "class_b": {
+                    "type": "string"
+                  },
+                  "co_change_commits": {
+                    "type": "integer",
+                    "minimum": 2
+                  },
+                  "coupling_ratio": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
                   "coupling_class": {
                     "type": "string",
-                    "enum": ["expected", "risky", "suspicious"]
+                    "enum": [
+                      "expected",
+                      "risky",
+                      "suspicious"
+                    ]
                   },
-                  "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-                  "confidence_explainer": {"type": "string"}
+                  "confidence": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "medium",
+                      "high"
+                    ]
+                  },
+                  "confidence_explainer": {
+                    "type": "string"
+                  },
+                  "is_logically_coupled": {
+                    "type": "boolean"
+                  }
                 }
               }
             },
-            "skipped_large_commits": {"type": "integer", "minimum": 0},
-            "capped_large_commits": {"type": "integer", "minimum": 0},
-            "max_files_per_commit": {"type": "integer", "minimum": 2}
+            "skipped_large_commits": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "capped_large_commits": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "max_files_per_commit": {
+              "type": "integer",
+              "minimum": 2
+            }
           }
         },
         "era_segmentation": {
@@ -177,13 +328,39 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["era", "label", "commits", "growth_signal", "top_churn_file"],
+            "required": [
+              "era",
+              "label",
+              "commits",
+              "growth_signal",
+              "top_churn_file"
+            ],
             "properties": {
-              "era": {"type": "string", "pattern": "^[0-9]{4}-[0-9]{2}$"},
-              "label": {"type": "string", "enum": ["expansion", "stabilization", "maintenance"]},
-              "commits": {"type": "integer", "minimum": 0},
-              "growth_signal": {"type": "integer"},
-              "top_churn_file": {"type": ["string", "null"]}
+              "era": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}$"
+              },
+              "label": {
+                "type": "string",
+                "enum": [
+                  "expansion",
+                  "stabilization",
+                  "maintenance"
+                ]
+              },
+              "commits": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "growth_signal": {
+                "type": "integer"
+              },
+              "top_churn_file": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
             }
           }
         }
@@ -191,15 +368,36 @@
     },
     "base_metrics": {
       "type": "object",
-      "required": ["file_churn", "file_growth", "commit_themes", "recent_refactors", "time_buckets", "language_breakdown"],
+      "required": [
+        "file_churn",
+        "file_growth",
+        "commit_themes",
+        "recent_refactors",
+        "time_buckets",
+        "language_breakdown"
+      ],
       "properties": {
-        "file_churn": {"type": "array"},
-        "file_growth": {"type": "array"},
-        "commit_themes": {"type": "object"},
-        "recent_refactors": {"type": "array"},
-        "time_buckets": {"type": "array"},
-        "language_breakdown": {"type": "array"},
-        "author_activity": {"type": "array"}
+        "file_churn": {
+          "type": "array"
+        },
+        "file_growth": {
+          "type": "array"
+        },
+        "commit_themes": {
+          "type": "object"
+        },
+        "recent_refactors": {
+          "type": "array"
+        },
+        "time_buckets": {
+          "type": "array"
+        },
+        "language_breakdown": {
+          "type": "array"
+        },
+        "author_activity": {
+          "type": "array"
+        }
       }
     },
     "dig_plan": {
@@ -207,21 +405,57 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["priority", "action", "target", "effort", "expected_leverage", "rationale"],
+        "required": [
+          "priority",
+          "action",
+          "target",
+          "effort",
+          "expected_leverage",
+          "rationale"
+        ],
         "properties": {
-          "priority": {"type": "string", "enum": ["high", "medium", "low"]},
-          "action": {"type": "string"},
-          "target": {"type": "string"},
-          "effort": {"type": "string", "enum": ["low", "medium", "high"]},
-          "expected_leverage": {"type": "string", "enum": ["low", "medium", "high"]},
-          "rationale": {"type": "string"}
+          "priority": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "action": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "effort": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "expected_leverage": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          },
+          "rationale": {
+            "type": "string"
+          }
         }
       }
     },
     "actionability": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["top_actions"],
+      "required": [
+        "top_actions"
+      ],
       "properties": {
         "top_actions": {
           "type": "array",
@@ -236,10 +470,17 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["code", "message"],
+        "required": [
+          "code",
+          "message"
+        ],
         "properties": {
-          "code": {"type": "string"},
-          "message": {"type": "string"}
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
         }
       }
     }

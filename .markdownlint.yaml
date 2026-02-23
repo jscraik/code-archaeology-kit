@@ -1,0 +1,14 @@
+# Default markdownlint rules for the repository
+MD003:
+  style: atx
+MD004:
+  style: dash
+MD007:
+  indent: 2
+MD009: false # Allow trailing spaces (sometimes needed for hard breaks in Markdown)
+MD013: false # Line length constraint disabled since many technical docs wrap naturally
+MD024:
+  siblings_only: true
+MD025: true # Single title per document
+MD033: false # Allow inline HTML in Markdown (useful for tables/badges/diagrams)
+MD041: true # First line should be a top-level heading

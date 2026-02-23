@@ -1,0 +1,29 @@
+{
+  "name": "code-archaeology-kit",
+  "version": "1.0.0",
+  "description": "Standalone CLI that scans a git repository and produces **actionable, privacy-safe** \u201cwhat to look at next\u201d archaeology artifacts (high-churn files, temporal coupling pairs, stale/abandoned structures).",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "docs:lint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#test-artifacts\" \"#tests\" \"#**/.pytest_cache\"",
+    "docs:readability": "python scripts/check_readability.py README.md"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jscraik/code-archaeology-kit.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jscraik/code-archaeology-kit/issues"
+  },
+  "homepage": "https://github.com/jscraik/code-archaeology-kit#readme",
+  "devDependencies": {
+    "markdownlint-cli2": "^0.21.0"
+  }
+}

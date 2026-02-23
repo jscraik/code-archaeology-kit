@@ -1,0 +1,373 @@
+{
+  "schema_version": "1.2.0",
+  "summary": {
+    "repo_path": "code-archaeology-kit",
+    "head_commit": "31f330db1dca22c1960c86550bf3ea15e3bd9263",
+    "generated_at_utc": "2026-02-23T00:02:24+00:00",
+    "since_days": 60,
+    "total_commits": 5
+  },
+  "settings": {
+    "min_churn_threshold": 3,
+    "include_authors": false,
+    "include_repo_path": false,
+    "include_commit_messages": false,
+    "max_commits": 15000,
+    "max_files_per_commit": 40,
+    "timeout_seconds": 600,
+    "top_actions": 3,
+    "use_default_ignores": true,
+    "large_commit_strategy": "cap"
+  },
+  "notices": [
+    {
+      "code": "REPO_PATH_REDACTED",
+      "message": "summary.repo_path is redacted to basename by default (use --include-repo-path to include full path)."
+    },
+    {
+      "code": "COMMIT_MESSAGES_REDACTED",
+      "message": "Commit messages are redacted by default (use --include-commit-messages to include sanitized messages)."
+    }
+  ],
+  "run_metadata": {
+    "tool": "cak scan",
+    "tool_version": "0.1.0",
+    "schema_path": "config/schemas/archaeology.schema.json",
+    "truncated": false,
+    "runtime_ms": 24,
+    "ignore_rules_applied": [
+      "**/*.pyc",
+      "**/__pycache__/**",
+      "*.lock",
+      "*.pyc",
+      ".venv/**",
+      "__pycache__/**",
+      "build/**",
+      "coverage/**",
+      "dist/**",
+      "node_modules/**",
+      "target/**",
+      "venv/**"
+    ]
+  },
+  "detectors": {
+    "abandoned_structures": [],
+    "temporal_coupling": {
+      "pairs": [
+        {
+          "file_a": "README.md",
+          "file_b": "src/code_archaeology/analyze.py",
+          "class_a": "docs",
+          "class_b": "product",
+          "co_change_commits": 3,
+          "coupling_ratio": 1.0,
+          "coupling_class": "risky",
+          "is_logically_coupled": false,
+          "confidence": "high",
+          "confidence_explainer": "ratio=1.0, co_changes=3, coupling_class=risky, logically_coupled=False"
+        },
+        {
+          "file_a": "README.md",
+          "file_b": "src/code_archaeology/cli.py",
+          "class_a": "docs",
+          "class_b": "product",
+          "co_change_commits": 3,
+          "coupling_ratio": 1.0,
+          "coupling_class": "risky",
+          "is_logically_coupled": false,
+          "confidence": "high",
+          "confidence_explainer": "ratio=1.0, co_changes=3, coupling_class=risky, logically_coupled=False"
+        },
+        {
+          "file_a": "src/code_archaeology/analyze.py",
+          "file_b": "tests/test_scan.py",
+          "class_a": "product",
+          "class_b": "test",
+          "co_change_commits": 3,
+          "coupling_ratio": 1.0,
+          "coupling_class": "risky",
+          "is_logically_coupled": false,
+          "confidence": "high",
+          "confidence_explainer": "ratio=1.0, co_changes=3, coupling_class=risky, logically_coupled=False"
+        },
+        {
+          "file_a": "src/code_archaeology/cli.py",
+          "file_b": "tests/test_scan.py",
+          "class_a": "product",
+          "class_b": "test",
+          "co_change_commits": 3,
+          "coupling_ratio": 1.0,
+          "coupling_class": "risky",
+          "is_logically_coupled": false,
+          "confidence": "high",
+          "confidence_explainer": "ratio=1.0, co_changes=3, coupling_class=risky, logically_coupled=False"
+        },
+        {
+          "file_a": "README.md",
+          "file_b": "tests/test_scan.py",
+          "class_a": "docs",
+          "class_b": "test",
+          "co_change_commits": 3,
+          "coupling_ratio": 1.0,
+          "coupling_class": "expected",
+          "is_logically_coupled": false,
+          "confidence": "medium",
+          "confidence_explainer": "ratio=1.0, co_changes=3, coupling_class=expected, logically_coupled=False"
+        },
+        {
+          "file_a": "src/code_archaeology/analyze.py",
+          "file_b": "src/code_archaeology/cli.py",
+          "class_a": "product",
+          "class_b": "product",
+          "co_change_commits": 3,
+          "coupling_ratio": 1.0,
+          "coupling_class": "expected",
+          "is_logically_coupled": false,
+          "confidence": "medium",
+          "confidence_explainer": "ratio=1.0, co_changes=3, coupling_class=expected, logically_coupled=False"
+        }
+      ],
+      "skipped_large_commits": 0,
+      "capped_large_commits": 0,
+      "max_files_per_commit": 40
+    },
+    "era_segmentation": [
+      {
+        "era": "2026-02",
+        "label": "expansion",
+        "commits": 5,
+        "growth_signal": 2195,
+        "top_churn_file": "README.md"
+      }
+    ]
+  },
+  "base_metrics": {
+    "file_churn": [
+      {
+        "file": "README.md",
+        "commits": 3
+      },
+      {
+        "file": "src/code_archaeology/analyze.py",
+        "commits": 3
+      },
+      {
+        "file": "src/code_archaeology/cli.py",
+        "commits": 3
+      },
+      {
+        "file": "tests/test_scan.py",
+        "commits": 3
+      },
+      {
+        "file": ".gitignore",
+        "commits": 2
+      },
+      {
+        "file": "config/schemas/archaeology.schema.json",
+        "commits": 2
+      },
+      {
+        "file": "CHANGELOG.md",
+        "commits": 1
+      },
+      {
+        "file": "CODE_OF_CONDUCT.md",
+        "commits": 1
+      },
+      {
+        "file": "CONTRIBUTING.md",
+        "commits": 1
+      },
+      {
+        "file": "LICENSE",
+        "commits": 1
+      },
+      {
+        "file": "SECURITY.md",
+        "commits": 1
+      },
+      {
+        "file": "docs/competition-matrix.md",
+        "commits": 1
+      },
+      {
+        "file": "pyproject.toml",
+        "commits": 1
+      },
+      {
+        "file": "scripts/ensure-gh-cli.sh",
+        "commits": 1
+      },
+      {
+        "file": "src/code_archaeology/__init__.py",
+        "commits": 1
+      },
+      {
+        "file": "src/code_archaeology/__main__.py",
+        "commits": 1
+      }
+    ],
+    "file_growth": [
+      {
+        "file": "src/code_archaeology/analyze.py",
+        "net_lines": 901
+      },
+      {
+        "file": "tests/test_scan.py",
+        "net_lines": 293
+      },
+      {
+        "file": "config/schemas/archaeology.schema.json",
+        "net_lines": 247
+      },
+      {
+        "file": "LICENSE",
+        "net_lines": 202
+      },
+      {
+        "file": "scripts/ensure-gh-cli.sh",
+        "net_lines": 154
+      },
+      {
+        "file": "src/code_archaeology/cli.py",
+        "net_lines": 133
+      },
+      {
+        "file": "README.md",
+        "net_lines": 96
+      },
+      {
+        "file": "CODE_OF_CONDUCT.md",
+        "net_lines": 42
+      },
+      {
+        "file": "CONTRIBUTING.md",
+        "net_lines": 40
+      },
+      {
+        "file": "docs/competition-matrix.md",
+        "net_lines": 21
+      },
+      {
+        "file": "pyproject.toml",
+        "net_lines": 21
+      },
+      {
+        "file": "SECURITY.md",
+        "net_lines": 20
+      },
+      {
+        "file": "CHANGELOG.md",
+        "net_lines": 12
+      },
+      {
+        "file": ".gitignore",
+        "net_lines": 8
+      },
+      {
+        "file": "src/code_archaeology/__main__.py",
+        "net_lines": 4
+      },
+      {
+        "file": "src/code_archaeology/__init__.py",
+        "net_lines": 1
+      }
+    ],
+    "commit_themes": {
+      "other": 4,
+      "feat": 1
+    },
+    "recent_refactors": [],
+    "time_buckets": [
+      {
+        "era": "2026-02",
+        "label": "expansion",
+        "commits": 5,
+        "growth_signal": 2195,
+        "top_churn_file": "README.md"
+      }
+    ],
+    "language_breakdown": [
+      {
+        "language": "Other",
+        "commits": 5
+      },
+      {
+        "language": "Python",
+        "commits": 3
+      }
+    ]
+  },
+  "dig_plan": [
+    {
+      "priority": "high",
+      "action": "review_temporal_coupling",
+      "target": "README.md <-> src/code_archaeology/analyze.py",
+      "effort": "medium",
+      "expected_leverage": "high",
+      "rationale": "co-change=3, ratio=1.0, class=risky"
+    },
+    {
+      "priority": "high",
+      "action": "review_temporal_coupling",
+      "target": "README.md <-> src/code_archaeology/cli.py",
+      "effort": "medium",
+      "expected_leverage": "high",
+      "rationale": "co-change=3, ratio=1.0, class=risky"
+    },
+    {
+      "priority": "high",
+      "action": "review_temporal_coupling",
+      "target": "src/code_archaeology/analyze.py <-> tests/test_scan.py",
+      "effort": "medium",
+      "expected_leverage": "high",
+      "rationale": "co-change=3, ratio=1.0, class=risky"
+    },
+    {
+      "priority": "high",
+      "action": "review_temporal_coupling",
+      "target": "src/code_archaeology/cli.py <-> tests/test_scan.py",
+      "effort": "medium",
+      "expected_leverage": "high",
+      "rationale": "co-change=3, ratio=1.0, class=risky"
+    },
+    {
+      "priority": "medium",
+      "action": "review_temporal_coupling",
+      "target": "README.md <-> tests/test_scan.py",
+      "effort": "medium",
+      "expected_leverage": "medium",
+      "rationale": "co-change=3, ratio=1.0, class=expected"
+    }
+  ],
+  "actionability": {
+    "top_actions": [
+      {
+        "priority": "high",
+        "action": "review_temporal_coupling",
+        "target": "README.md <-> src/code_archaeology/analyze.py",
+        "effort": "medium",
+        "expected_leverage": "high",
+        "rationale": "co-change=3, ratio=1.0, class=risky"
+      },
+      {
+        "priority": "high",
+        "action": "review_temporal_coupling",
+        "target": "README.md <-> src/code_archaeology/cli.py",
+        "effort": "medium",
+        "expected_leverage": "high",
+        "rationale": "co-change=3, ratio=1.0, class=risky"
+      },
+      {
+        "priority": "high",
+        "action": "review_temporal_coupling",
+        "target": "src/code_archaeology/analyze.py <-> tests/test_scan.py",
+        "effort": "medium",
+        "expected_leverage": "high",
+        "rationale": "co-change=3, ratio=1.0, class=risky"
+      }
+    ]
+  },
+  "errors": []
+}

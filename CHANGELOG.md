@@ -9,4 +9,3 @@ The format is based on Keep a Changelog, and this project aims to follow Semanti
 ### Added
 
 - `cak scan --share-snippet` to generate `archaeology_share.md` (share-ready summary) and `archaeology_events.jsonl` (local event log).
-

@@ -39,4 +39,3 @@ To report a Code of Conduct issue, contact the maintainer via GitHub (@jscraik).
 ## Attribution
 
 This Code of Conduct is adapted from the Contributor Covenant, version 2.1.
-

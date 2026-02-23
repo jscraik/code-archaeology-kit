@@ -3,13 +3,16 @@
 Thanks for your interest in improving Code Archaeology Kit.
 
 ## When to use
+
 Use this guide when you want to make a code or documentation change and open a PR.
 
 ## Inputs
+
 - Python: 3.11+
 - Git: installed (the CLI shells out to `git`)
 
 ## Outputs
+
 - A PR with tests passing (`pytest -q`)
 
 ## Development setup
@@ -37,4 +40,3 @@ PYTHONPATH=src python -m code_archaeology scan --help
 - [ ] `pytest -q` passes
 - [ ] Any new CLI flags are documented in `README.md`
 - [ ] Outputs remain privacy-safe by default (no repo path, no commit messages, no authors unless explicitly enabled)
-
