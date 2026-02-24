@@ -9,7 +9,7 @@ description = "Standalone code archaeology CLI for git repositories"
 readme = "README.md"
 requires-python = ">=3.11"
 authors = [{ name = "jscraik" }]
-dependencies = ["jsonschema>=4.0.0"]
+dependencies = ["jsonschema>=4.0.0,<5.0.0"]
 
 [project.scripts]
 cak = "code_archaeology.cli:main"

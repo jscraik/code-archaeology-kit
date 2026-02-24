@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "jsonschema", specifier = ">=4.0.0" }]
+requires-dist = [{ name = "jsonschema", specifier = ">=4.0.0,<5.0.0" }]
 
 [[package]]
 name = "jsonschema"
