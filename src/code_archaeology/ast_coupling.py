@@ -89,6 +89,35 @@ def _python_import_matches_module(imp: str, module: str) -> bool:
     return True
 
 
+def _python_import_matches_explicit_stdlib_shadow(
+    repo_root: Path,
+    module_file: str,
+    imp: str,
+    module: str,
+) -> bool:
+    candidates = _python_module_candidates(module)
+    if imp not in candidates:
+        return False
+
+    imp_parts = tuple(part for part in imp.split(".") if part)
+    if len(imp_parts) < 2:
+        return False
+
+    root = imp_parts[0]
+    if root not in STDLIB_MODULES:
+        return False
+
+    file_parts = PurePosixPath(module_file).with_suffix("").parts
+    if len(file_parts) < len(imp_parts):
+        return False
+    start_idx = len(file_parts) - len(imp_parts)
+    if tuple(file_parts[start_idx:]) != imp_parts:
+        return False
+
+    package_root = Path(repo_root, *file_parts[: start_idx + 1])
+    return (package_root / "__init__.py").exists()
+
+
 def _js_import_matches_module(imp: str, module: str) -> bool:
     return imp == module or module == f"{imp}/index"
 
@@ -191,19 +220,24 @@ def check_logical_coupling(
     mod_a = to_mod(file_a, ext_a)
     mod_b = to_mod(file_b, ext_b)
 
-    def matches(imp: str, module: str, module_ext: str) -> bool:
+    def matches(imp: str, module: str, module_ext: str, module_file: str) -> bool:
         if module_ext == ".py":
-            return _python_import_matches_module(imp, module)
+            return _python_import_matches_module(imp, module) or _python_import_matches_explicit_stdlib_shadow(
+                repo_root=repo_root,
+                module_file=module_file,
+                imp=imp,
+                module=module,
+            )
         return _js_import_matches_module(imp, module)
 
     # Check if a imports b
     for imp in imports_a:
-        if matches(imp, mod_b, ext_b):
+        if matches(imp, mod_b, ext_b, file_b):
             return True
 
     # Check if b imports a
     for imp in imports_b:
-        if matches(imp, mod_a, ext_a):
+        if matches(imp, mod_a, ext_a, file_a):
             return True
             
     return False

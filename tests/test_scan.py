@@ -291,6 +291,51 @@ def test_scan_json_mode_emits_structured_error_for_validation_failures(tmp_path:
     assert "--ack-pii" in payload["errors"][0]["message"]
 
 
+def test_scan_json_mode_preserves_written_artifact_paths_when_share_snippet_fails(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "archaeology_share.md").mkdir()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "both",
+            "--force",
+            "--share-snippet",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["artifacts"]["json"] == str(out / "archaeology.json")
+    assert payload["artifacts"]["markdown"] == str(out / "archaeology_report.md")
+    assert payload["share"]["snippet_markdown"] is None
+    assert payload["share"]["events_jsonl"] is None
+    assert (out / "archaeology.json").exists()
+    assert (out / "archaeology_report.md").exists()
+    assert "Output path is a directory" in payload["errors"][0]["message"]
+
+
 def test_include_authors_with_ack_pii_emits_author_activity(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     repo = tmp_path / "repo"

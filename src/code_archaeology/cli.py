@@ -80,15 +80,27 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "scan":
-        def emit_scan_error(message: str) -> int:
+        def emit_scan_error(
+            message: str,
+            json_path: Path | None = None,
+            md_path: Path | None = None,
+            share_path: Path | None = None,
+            events_path: Path | None = None,
+        ) -> int:
             if args.json:
                 print(
                     json.dumps(
                         {
                             "ok": False,
                             "schema": "cak.scan.v1",
-                            "artifacts": {"json": None, "markdown": None},
-                            "share": {"snippet_markdown": None, "events_jsonl": None},
+                            "artifacts": {
+                                "json": str(json_path) if json_path else None,
+                                "markdown": str(md_path) if md_path else None,
+                            },
+                            "share": {
+                                "snippet_markdown": str(share_path) if share_path else None,
+                                "events_jsonl": str(events_path) if events_path else None,
+                            },
                             "top_actions": [],
                             "notices": [],
                             "errors": [{"code": "SCAN_ERROR", "message": message}],
@@ -108,6 +120,10 @@ def main() -> int:
                 return emit_scan_error(f"Output path is a directory: {share_target}")
             if share_target.exists():
                 return emit_scan_error(f"Refusing overwrite: {share_target} (use --force)")
+        json_path: Path | None = None
+        md_path: Path | None = None
+        share_path: Path | None = None
+        events_path: Path | None = None
         try:
             payload = analyze_repo(
                 repo=args.repo,
@@ -126,8 +142,6 @@ def main() -> int:
                 large_commit_strategy=args.large_commit_strategy,
             )
             json_path, md_path = write_payload(payload, args.output_dir, args.format, args.force)
-            share_path = None
-            events_path = None
             if args.share_snippet:
                 share_path = write_share_snippet(payload, args.output_dir, args.force)
                 events_path = _append_event(
@@ -142,7 +156,13 @@ def main() -> int:
                     },
                 )
         except ArchaeologyError as exc:
-            return emit_scan_error(str(exc))
+            return emit_scan_error(
+                str(exc),
+                json_path=json_path,
+                md_path=md_path,
+                share_path=share_path,
+                events_path=events_path,
+            )
 
         if args.json:
             print(json.dumps({

@@ -94,6 +94,18 @@ def test_ast_python_stdlib_submodule_import_does_not_match_root_package(tmp_path
     assert check_logical_coupling(repo, "a.py", "http/client.py") is False
 
 
+def test_ast_python_explicit_local_package_shadowing_stdlib_submodule_is_detected(tmp_path: Path):
+    repo = tmp_path / "repo"
+    src_json = repo / "src" / "json"
+    src_json.mkdir(parents=True)
+    (src_json / "__init__.py").write_text("")
+
+    (repo / "src" / "a.py").write_text("import json.tool\n")
+    (src_json / "tool.py").write_text("VALUE = 1\n")
+
+    assert check_logical_coupling(repo, "src/a.py", "src/json/tool.py") is True
+
+
 def test_ast_python_parent_relative_import_targets_correct_package_level(tmp_path: Path):
     repo = tmp_path / "repo"
     pkg_sub = repo / "pkg" / "sub"
