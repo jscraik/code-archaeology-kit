@@ -348,9 +348,10 @@ def parse_git_log(
             stripped = line.strip()
             rename_match = RENAME_SUMMARY_RE.match(stripped)
             if rename_match:
-                rename_spec = _decode_git_quoted_tokens(rename_match.group(1))
+                rename_spec_raw = rename_match.group(1)
+                rename_spec = _decode_git_quoted_tokens(rename_spec_raw)
                 current_root_rename_hints.add(rename_spec)
-                normalized_target = _normalize_numstat_path(rename_spec, "0", "0", {rename_spec})
+                normalized_target = _normalize_numstat_path(rename_spec_raw, "0", "0", {rename_spec})
                 if (
                     normalized_target == rename_spec
                     and len(_ambiguous_rename_splits(rename_spec)) > 1

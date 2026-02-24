@@ -311,6 +311,46 @@ def test_parse_git_log_normalizes_rename_to_literal_arrow_filename_with_edit(tmp
     assert [f.path for f in rename_commit.files] == ["a => b.txt"]
 
 
+def test_parse_git_log_normalizes_root_rename_to_double_quote_filename(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    old_path = repo / "old.py"
+    old_path.write_text("x\n")
+    subprocess.run(["git", "-C", str(repo), "add", old_path.name], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "feat: add root file"], check=True, capture_output=True, text=True)
+
+    subprocess.run(["git", "-C", str(repo), "mv", "old.py", 'a"quote".py'], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "refactor: rename to quoted filename"], check=True, capture_output=True, text=True)
+
+    commits, truncated = parse_git_log(repo=repo, since_days=365, timeout_seconds=30, max_commits=100, ignore_globs=[])
+
+    assert truncated is False
+    rename_commit = next(c for c in commits if c.message.startswith("refactor: rename to quoted filename"))
+    assert [f.path for f in rename_commit.files] == ['a"quote".py']
+
+
+def test_parse_git_log_normalizes_root_rename_from_double_quote_filename_with_edit(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    old_path = repo / 'a"quote".py'
+    old_path.write_text("x\n")
+    subprocess.run(["git", "-C", str(repo), "add", old_path.name], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "feat: add quoted filename"], check=True, capture_output=True, text=True)
+
+    subprocess.run(["git", "-C", str(repo), "mv", 'a"quote".py', "new.py"], check=True)
+    (repo / "new.py").write_text("x\ny\n")
+    subprocess.run(["git", "-C", str(repo), "add", "new.py"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "refactor: rename from quoted filename"], check=True, capture_output=True, text=True)
+
+    commits, truncated = parse_git_log(repo=repo, since_days=365, timeout_seconds=30, max_commits=100, ignore_globs=[])
+
+    assert truncated is False
+    rename_commit = next(c for c in commits if c.message.startswith("refactor: rename from quoted filename"))
+    assert [f.path for f in rename_commit.files] == ["new.py"]
+
+
 def test_parse_git_log_resolves_ambiguous_root_rename_with_edit(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     _init_repo(repo)
