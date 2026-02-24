@@ -67,9 +67,11 @@ def classify_path(path: str) -> str:
     top_segment = segments[0] if segments else ""
     infra_segments = {"infra", "ops", "docker", "k8s", "terraform"}
     app_like_roots = {"src", "lib", "app", "test", "tests", "fixtures", "docs"}
-    generated_segments = {"dist", "build", "target", "node_modules"}
+    generated_segments = {"dist", "build", "target", "node_modules", ".venv", "venv", "coverage"}
 
     if "__pycache__" in p or name.endswith(".pyc"):
+        return "generated"
+    if name.endswith(".lock"):
         return "generated"
     if (
         p.startswith("test/")

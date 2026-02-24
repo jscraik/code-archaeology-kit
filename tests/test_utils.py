@@ -43,3 +43,14 @@ def test_classify_path_keeps_real_generated_directories_generated():
     assert classify_path("packages/web/dist/app.js") == "generated"
     assert classify_path("src/dist/app.js") == "generated"
     assert classify_path("src/build/output.py") == "generated"
+
+
+def test_classify_path_marks_virtualenv_and_coverage_paths_generated():
+    assert classify_path(".venv/lib/python/site.py") == "generated"
+    assert classify_path("venv/lib/python/site.py") == "generated"
+    assert classify_path("coverage/index.html") == "generated"
+
+
+def test_classify_path_marks_lockfiles_generated():
+    assert classify_path("poetry.lock") == "generated"
+    assert classify_path("src/package-lock.lock") == "generated"
