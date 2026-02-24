@@ -41,6 +41,69 @@ JS_IMPORT_RE = re.compile(
 )
 
 
+def _js_comment_spans(content: str) -> list[tuple[int, int]]:
+    spans: list[tuple[int, int]] = []
+    idx = 0
+    length = len(content)
+    state: str = "code"
+
+    while idx < length:
+        ch = content[idx]
+        nxt = content[idx + 1] if idx + 1 < length else ""
+
+        if state == "code":
+            if ch == "/" and nxt == "/":
+                start = idx
+                idx += 2
+                while idx < length and content[idx] != "\n":
+                    idx += 1
+                spans.append((start, idx))
+                continue
+            if ch == "/" and nxt == "*":
+                start = idx
+                idx += 2
+                while idx + 1 < length and not (content[idx] == "*" and content[idx + 1] == "/"):
+                    idx += 1
+                idx = min(length, idx + 2)
+                spans.append((start, idx))
+                continue
+            if ch == "'":
+                state = "single"
+                idx += 1
+                continue
+            if ch == '"':
+                state = "double"
+                idx += 1
+                continue
+            if ch == "`":
+                state = "template"
+                idx += 1
+                continue
+            idx += 1
+            continue
+
+        if ch == "\\":
+            idx += 2
+            continue
+
+        if state == "single" and ch == "'":
+            state = "code"
+        elif state == "double" and ch == '"':
+            state = "code"
+        elif state == "template" and ch == "`":
+            state = "code"
+        idx += 1
+
+    return spans
+
+
+def _in_comment_span(pos: int, spans: list[tuple[int, int]]) -> bool:
+    for start, end in spans:
+        if start <= pos < end:
+            return True
+    return False
+
+
 def extract_js_imports(file_path: Path) -> set[str]:
     if not file_path.exists():
         return set()
@@ -49,8 +112,11 @@ def extract_js_imports(file_path: Path) -> set[str]:
     except Exception:
         return set()
     
+    comment_spans = _js_comment_spans(content)
     imports = set()
     for match in JS_IMPORT_RE.finditer(content):
+        if _in_comment_span(match.start(), comment_spans):
+            continue
         # Match group 1 is import/from, group 2 is require, group 3 is dynamic import()
         imp = match.group(1) or match.group(2) or match.group(3)
         if not imp:

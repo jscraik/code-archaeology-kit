@@ -173,6 +173,28 @@ def test_ast_javascript_package_import_not_coupled_to_local_same_name(tmp_path: 
     assert check_logical_coupling(repo, "js/main.js", "js/lodash.js") is False
 
 
+def test_ast_javascript_import_in_line_comment_is_not_counted(tmp_path: Path):
+    repo = tmp_path / "repo"
+    js_dir = repo / "js"
+    js_dir.mkdir(parents=True)
+
+    (js_dir / "main.js").write_text("// import helper from './helper.js'\nconst x = 1;\n")
+    (js_dir / "helper.js").write_text("export default 1;\n")
+
+    assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
+
+
+def test_ast_javascript_import_in_block_comment_is_not_counted(tmp_path: Path):
+    repo = tmp_path / "repo"
+    js_dir = repo / "js"
+    js_dir.mkdir(parents=True)
+
+    (js_dir / "main.js").write_text("/* import helper from './helper.js' */\nconst x = 1;\n")
+    (js_dir / "helper.js").write_text("export default 1;\n")
+
+    assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
+
+
 def test_ast_javascript_relative_path_does_not_match_other_index_file(tmp_path: Path):
     repo = tmp_path / "repo"
     js_dir = repo / "js"
