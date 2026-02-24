@@ -1,14 +1,16 @@
 # Contradictions and cleanup
 
 ## Contradictions found
-1. Global guidance from `/Users/jamiecraik/.codex/AGENTS.md` lists package manager as **none (configuration-only repo)**, but this repository uses `python3 -m pip` and has `package.json` scripts.
-   - Which instruction wins for tooling commands?
-2. Required global protocol references mention agent-first scaffold docs (`agent-first-scaffold-spec`, `README.checklist`, `validator-contracts`, `strict-toggle-governance`), but those files are not all present.
-   - Should missing files block scaffold-only instructions, or should we proceed with fallback references only?
-3. This repository is confirmed for GitHub Pages (`https://jscraik.github.io/unfinished-cemetery/`) while it still has no local Pages source files in repo evidence.
-   - Keep frontend policy active for web-facing tasks, but treat local-server commands as pending until verified by task scope.
+
+1. Global `/Users/jamiecraik/.codex/AGENTS.md` describes a configuration-only repo, while this repository is a Python CLI project.
+   - Question: Keep local repo instructions as the canonical source for package manager and validation commands?
+2. Frontend website guidance exists, but this repository has no primary frontend framework files (`vite.config.*`, `next.config.*`, `src/main.*`) as default development targets.
+   - Resolved on 2026-02-24: keep frontend rules as conditional policy only.
+3. README install examples use `python -m pip`, while this repo guide standardizes on `python3 -m pip`.
+   - Question: Should we normalize all docs to `python3` for consistency?
 
 ## Flag for deletion
-- Remove any legacy assumption that `pytest`/`npm` are always available; keep checks environment-aware.
-- Remove any duplicated global protocol content copied into repo files; keep only links.
-- Merge `Frontend website rules` into a dedicated docs file and keep root `AGENTS.md` concise.
+
+- Any stale claim that `rg` or `fd` is unavailable in this environment.
+- Duplicated global protocol text copied into repo docs instead of linked references.
+- Unconditional frontend workflow requirements in non-frontend tasks.

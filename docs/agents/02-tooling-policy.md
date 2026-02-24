@@ -1,19 +1,29 @@
 # Tooling policy
 
 ## Tooling essentials
+
 - Core language tool: `python3`
-- Project install: `python3 -m pip install -e .`
-- CLI entrypoint for verification: `cak scan --help`
+- Preferred install: `python3 -m pip install -e .`
+- Install fallback for older pip: `python3 -m pip install .`
+- CLI verification entrypoint: `PYTHONPATH=src python3 -m code_archaeology scan --help`
+- Shell wrapper for commands: `zsh -lc`
 
 ## Tool availability checks
-- Confirm command availability before use:
-  - `command -v python3`
-  - `command -v rg`
-  - `command -v fd`
-  - `command -v jq`
-- In this environment, `rg` and `fd` are missing.
+
+Run before repo-wide search or JSON parsing:
+
+- `command -v rg`
+- `command -v fd`
+- `command -v jq`
+- `command -v python3`
+- `command -v npm`
+
+Observed in this environment on 2026-02-24:
+
+- `rg`, `fd`, `jq`, `python3`, and `npm` are available.
 
 ## Command conventions
-- Use repo-local file paths and commands shown in repository files.
+
+- Prefer `rg`, `fd`, and `jq` over `grep`, `find`, and regex parsing.
+- Use repository commands already documented in `README.md`, `pyproject.toml`, and `package.json`.
 - Do not introduce new dependency managers.
-- Prefer concise commands that produce deterministic output for checklists.
