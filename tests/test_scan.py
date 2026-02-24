@@ -299,7 +299,7 @@ def test_scan_json_mode_preserves_written_artifact_paths_when_share_snippet_fail
     _init_repo(repo)
     _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
     out.mkdir(parents=True, exist_ok=True)
-    (out / "archaeology_share.md").mkdir()
+    (out / "archaeology_events.jsonl").mkdir()
 
     result = subprocess.run(
         [
@@ -329,11 +329,12 @@ def test_scan_json_mode_preserves_written_artifact_paths_when_share_snippet_fail
     assert payload["ok"] is False
     assert payload["artifacts"]["json"] == str(out / "archaeology.json")
     assert payload["artifacts"]["markdown"] == str(out / "archaeology_report.md")
-    assert payload["share"]["snippet_markdown"] is None
+    assert payload["share"]["snippet_markdown"] == str(out / "archaeology_share.md")
     assert payload["share"]["events_jsonl"] is None
     assert (out / "archaeology.json").exists()
     assert (out / "archaeology_report.md").exists()
-    assert "Output path is a directory" in payload["errors"][0]["message"]
+    assert (out / "archaeology_share.md").exists()
+    assert "Failed to write file" in payload["errors"][0]["message"]
 
 
 def test_include_authors_with_ack_pii_emits_author_activity(tmp_path: Path) -> None:
@@ -655,6 +656,48 @@ def test_scan_share_snippet_json_mode_reports_directory_target_error(tmp_path: P
     assert payload["ok"] is False
     assert payload["errors"][0]["code"] == "SCAN_ERROR"
     assert "Output path is a directory" in payload["errors"][0]["message"]
+
+
+def test_scan_share_snippet_json_mode_reports_directory_target_error_even_with_force(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "archaeology_share.md").mkdir()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--share-snippet",
+            "--json",
+            "--force",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "Output path is a directory" in payload["errors"][0]["message"]
+    assert not (out / "archaeology.json").exists()
 
 
 def test_scan_empty_repository_returns_clear_error(tmp_path: Path) -> None:

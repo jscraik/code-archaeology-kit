@@ -114,11 +114,11 @@ def main() -> int:
 
         if args.include_authors and not args.ack_pii:
             return emit_scan_error("--include-authors requires --ack-pii")
-        if args.share_snippet and not args.force:
+        if args.share_snippet:
             share_target = args.output_dir.expanduser().resolve() / "archaeology_share.md"
             if share_target.exists() and share_target.is_dir():
                 return emit_scan_error(f"Output path is a directory: {share_target}")
-            if share_target.exists():
+            if share_target.exists() and not args.force:
                 return emit_scan_error(f"Refusing overwrite: {share_target} (use --force)")
         json_path: Path | None = None
         md_path: Path | None = None
