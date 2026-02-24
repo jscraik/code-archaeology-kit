@@ -163,6 +163,14 @@ def main() -> int:
                 share_path=share_path,
                 events_path=events_path,
             )
+        except Exception as exc:  # pragma: no cover - defensive contract guard
+            return emit_scan_error(
+                f"Unexpected internal error: {exc}",
+                json_path=json_path,
+                md_path=md_path,
+                share_path=share_path,
+                events_path=events_path,
+            )
 
         if args.json:
             print(json.dumps({
