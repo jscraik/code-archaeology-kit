@@ -86,8 +86,17 @@ def main() -> int:
             md_path: Path | None = None,
             share_path: Path | None = None,
             events_path: Path | None = None,
+            payload: dict[str, Any] | None = None,
         ) -> int:
             if args.json:
+                top_actions = []
+                notices = []
+                payload_errors: list[dict[str, str]] = []
+                if isinstance(payload, dict):
+                    top_actions = payload.get("actionability", {}).get("top_actions", []) or []
+                    notices = payload.get("notices", []) or []
+                    payload_errors = payload.get("errors", []) or []
+                errors = [*payload_errors, {"code": "SCAN_ERROR", "message": message}]
                 print(
                     json.dumps(
                         {
@@ -101,9 +110,9 @@ def main() -> int:
                                 "snippet_markdown": str(share_path) if share_path else None,
                                 "events_jsonl": str(events_path) if events_path else None,
                             },
-                            "top_actions": [],
-                            "notices": [],
-                            "errors": [{"code": "SCAN_ERROR", "message": message}],
+                            "top_actions": top_actions,
+                            "notices": notices,
+                            "errors": errors,
                         },
                         indent=2,
                     )
@@ -127,6 +136,7 @@ def main() -> int:
         md_path: Path | None = None
         share_path: Path | None = None
         events_path: Path | None = None
+        payload: dict[str, Any] | None = None
         try:
             payload = analyze_repo(
                 repo=args.repo,
@@ -165,6 +175,7 @@ def main() -> int:
                 md_path=md_path,
                 share_path=share_path,
                 events_path=events_path,
+                payload=payload,
             )
         except Exception as exc:  # pragma: no cover - defensive contract guard
             return emit_scan_error(
@@ -173,6 +184,7 @@ def main() -> int:
                 md_path=md_path,
                 share_path=share_path,
                 events_path=events_path,
+                payload=payload,
             )
 
         if args.json:
