@@ -6,6 +6,22 @@ from pathlib import PurePosixPath
 from pathlib import Path
 
 STDLIB_MODULES = set(getattr(sys, "stdlib_module_names", set()))
+REGEX_PREFIX_KEYWORDS = {
+    "case",
+    "delete",
+    "do",
+    "else",
+    "in",
+    "instanceof",
+    "new",
+    "of",
+    "return",
+    "throw",
+    "typeof",
+    "void",
+    "yield",
+    "await",
+}
 
 
 def extract_python_imports(file_path: Path) -> set[str]:
@@ -153,6 +169,9 @@ def _looks_like_regex_literal_start(content: str, slash_idx: int) -> bool:
         return True
 
     prev = content[prev_idx]
+    keyword = _identifier_ending_at(content, prev_idx)
+    if keyword is not None and keyword[0] in REGEX_PREFIX_KEYWORDS and _is_standalone_keyword(content, keyword[1]):
+        return True
     if prev == ")" and _is_control_flow_condition_close(content, prev_idx):
         return True
     if prev.isalnum() or prev in {"_", "$", ")", "]", "'", '"', "`"}:
@@ -188,6 +207,33 @@ def _is_control_flow_condition_close(content: str, close_paren_idx: int) -> bool
         keyword_start -= 1
     keyword = content[keyword_start + 1 : keyword_end + 1]
     return keyword in {"if", "while", "for", "with", "catch", "switch"}
+
+
+def _identifier_ending_at(content: str, idx: int) -> tuple[str, int] | None:
+    if idx < 0:
+        return None
+    ch = content[idx]
+    if not (ch.isalpha() or ch == "_" or ch == "$"):
+        return None
+
+    start = idx
+    while start - 1 >= 0 and (content[start - 1].isalnum() or content[start - 1] in {"_", "$"}):
+        start -= 1
+    return content[start : idx + 1], start
+
+
+def _is_standalone_keyword(content: str, start_idx: int) -> bool:
+    if start_idx <= 0:
+        return True
+
+    prev_idx = start_idx - 1
+    while prev_idx >= 0 and content[prev_idx].isspace():
+        prev_idx -= 1
+    if prev_idx < 0:
+        return True
+
+    prev = content[prev_idx]
+    return not (prev.isalnum() or prev in {"_", "$", "."})
 
 
 def _in_non_code_span(pos: int, spans: list[tuple[int, int]]) -> bool:

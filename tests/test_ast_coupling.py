@@ -239,6 +239,28 @@ def test_ast_javascript_import_like_text_in_regex_after_if_condition_is_not_coun
     assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
 
 
+def test_ast_javascript_import_like_text_in_regex_after_return_is_not_counted(tmp_path: Path):
+    repo = tmp_path / "repo"
+    js_dir = repo / "js"
+    js_dir.mkdir(parents=True)
+
+    (js_dir / "main.js").write_text("function f(){ return /import helper from './helper.js'/.test('x'); }\n")
+    (js_dir / "helper.js").write_text("export default 1;\n")
+
+    assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
+
+
+def test_ast_javascript_import_like_text_in_regex_after_else_is_not_counted(tmp_path: Path):
+    repo = tmp_path / "repo"
+    js_dir = repo / "js"
+    js_dir.mkdir(parents=True)
+
+    (js_dir / "main.js").write_text("if (flag) { x(); } else /import helper from './helper.js'/.test('x');\n")
+    (js_dir / "helper.js").write_text("export default 1;\n")
+
+    assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
+
+
 def test_ast_javascript_relative_path_does_not_match_other_index_file(tmp_path: Path):
     repo = tmp_path / "repo"
     js_dir = repo / "js"
