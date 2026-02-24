@@ -171,12 +171,20 @@ def main() -> int:
         try:
             diff_markdown = diff_reports(args.old, args.new)
             out_dir = args.output.expanduser().resolve()
-            out_dir.mkdir(parents=True, exist_ok=True)
+            if out_dir.exists() and out_dir.is_file():
+                raise ArchaeologyError(f"Output path is a file: {out_dir}")
+            try:
+                out_dir.mkdir(parents=True, exist_ok=True)
+            except OSError as exc:
+                raise ArchaeologyError(f"Failed to prepare output directory: {out_dir}") from exc
             diff_path = out_dir / "archaeology_diff.md"
             with diff_path.open("w", encoding="utf-8") as handle:
                 handle.write(diff_markdown)
             print(f"Diff complete. Generated: {diff_path}")
             return 0
+        except ArchaeologyError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
         except Exception as exc:
             print(f"error: {exc}", file=sys.stderr)
             return 2
