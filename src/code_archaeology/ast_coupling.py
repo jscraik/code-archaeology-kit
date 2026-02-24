@@ -153,9 +153,41 @@ def _looks_like_regex_literal_start(content: str, slash_idx: int) -> bool:
         return True
 
     prev = content[prev_idx]
+    if prev == ")" and _is_control_flow_condition_close(content, prev_idx):
+        return True
     if prev.isalnum() or prev in {"_", "$", ")", "]", "'", '"', "`"}:
         return False
     return True
+
+
+def _is_control_flow_condition_close(content: str, close_paren_idx: int) -> bool:
+    depth = 0
+    open_paren_idx: int | None = None
+
+    for idx in range(close_paren_idx, -1, -1):
+        ch = content[idx]
+        if ch == ")":
+            depth += 1
+        elif ch == "(":
+            depth -= 1
+            if depth == 0:
+                open_paren_idx = idx
+                break
+
+    if open_paren_idx is None:
+        return False
+
+    keyword_end = open_paren_idx - 1
+    while keyword_end >= 0 and content[keyword_end].isspace():
+        keyword_end -= 1
+    if keyword_end < 0:
+        return False
+
+    keyword_start = keyword_end
+    while keyword_start >= 0 and (content[keyword_start].isalpha() or content[keyword_start] == "_"):
+        keyword_start -= 1
+    keyword = content[keyword_start + 1 : keyword_end + 1]
+    return keyword in {"if", "while", "for", "with", "catch", "switch"}
 
 
 def _in_non_code_span(pos: int, spans: list[tuple[int, int]]) -> bool:
