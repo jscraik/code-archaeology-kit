@@ -83,6 +83,31 @@ def _js_non_code_spans(content: str) -> list[tuple[int, int]]:
                 span_start = idx
                 idx += 1
                 continue
+            if ch == "/" and _looks_like_regex_literal_start(content, idx):
+                start = idx
+                idx += 1
+                in_char_class = False
+                while idx < length:
+                    cur = content[idx]
+                    if cur == "\\":
+                        idx += 2
+                        continue
+                    if cur == "[" and not in_char_class:
+                        in_char_class = True
+                        idx += 1
+                        continue
+                    if cur == "]" and in_char_class:
+                        in_char_class = False
+                        idx += 1
+                        continue
+                    if cur == "/" and not in_char_class:
+                        idx += 1
+                        while idx < length and content[idx].isalpha():
+                            idx += 1
+                        break
+                    idx += 1
+                spans.append((start, min(idx, length)))
+                continue
             idx += 1
             continue
 
@@ -111,6 +136,26 @@ def _js_non_code_spans(content: str) -> list[tuple[int, int]]:
         spans.append((span_start, length))
 
     return spans
+
+
+def _looks_like_regex_literal_start(content: str, slash_idx: int) -> bool:
+    if slash_idx + 1 >= len(content):
+        return False
+
+    nxt = content[slash_idx + 1]
+    if nxt in {"/", "*", "="}:
+        return False
+
+    prev_idx = slash_idx - 1
+    while prev_idx >= 0 and content[prev_idx].isspace():
+        prev_idx -= 1
+    if prev_idx < 0:
+        return True
+
+    prev = content[prev_idx]
+    if prev.isalnum() or prev in {"_", "$", ")", "]", "'", '"', "`"}:
+        return False
+    return True
 
 
 def _in_non_code_span(pos: int, spans: list[tuple[int, int]]) -> bool:

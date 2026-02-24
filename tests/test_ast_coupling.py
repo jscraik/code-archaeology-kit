@@ -217,6 +217,17 @@ def test_ast_javascript_import_like_text_in_template_literal_is_not_counted(tmp_
     assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
 
 
+def test_ast_javascript_import_like_text_in_regex_literal_is_not_counted(tmp_path: Path):
+    repo = tmp_path / "repo"
+    js_dir = repo / "js"
+    js_dir.mkdir(parents=True)
+
+    (js_dir / "main.js").write_text("const re = /import helper from './helper.js'/;\n")
+    (js_dir / "helper.js").write_text("export default 1;\n")
+
+    assert check_logical_coupling(repo, "js/main.js", "js/helper.js") is False
+
+
 def test_ast_javascript_relative_path_does_not_match_other_index_file(tmp_path: Path):
     repo = tmp_path / "repo"
     js_dir = repo / "js"
