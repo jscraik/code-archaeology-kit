@@ -120,6 +120,9 @@ def main() -> int:
                 return emit_scan_error(f"Output path is a directory: {share_target}")
             if share_target.exists() and not args.force:
                 return emit_scan_error(f"Refusing overwrite: {share_target} (use --force)")
+            events_target = args.output_dir.expanduser().resolve() / "archaeology_events.jsonl"
+            if events_target.exists() and events_target.is_dir():
+                return emit_scan_error(f"Output path is a directory: {events_target}")
         json_path: Path | None = None
         md_path: Path | None = None
         share_path: Path | None = None

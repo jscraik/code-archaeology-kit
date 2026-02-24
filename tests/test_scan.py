@@ -291,7 +291,7 @@ def test_scan_json_mode_emits_structured_error_for_validation_failures(tmp_path:
     assert "--ack-pii" in payload["errors"][0]["message"]
 
 
-def test_scan_json_mode_preserves_written_artifact_paths_when_share_snippet_fails(tmp_path: Path) -> None:
+def test_scan_json_mode_share_snippet_preflight_rejects_events_directory_target(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     repo = tmp_path / "repo"
     out = tmp_path / "out"
@@ -327,14 +327,14 @@ def test_scan_json_mode_preserves_written_artifact_paths_when_share_snippet_fail
     assert result.returncode == 2
     payload = json.loads(result.stdout)
     assert payload["ok"] is False
-    assert payload["artifacts"]["json"] == str(out / "archaeology.json")
-    assert payload["artifacts"]["markdown"] == str(out / "archaeology_report.md")
-    assert payload["share"]["snippet_markdown"] == str(out / "archaeology_share.md")
+    assert payload["artifacts"]["json"] is None
+    assert payload["artifacts"]["markdown"] is None
+    assert payload["share"]["snippet_markdown"] is None
     assert payload["share"]["events_jsonl"] is None
-    assert (out / "archaeology.json").exists()
-    assert (out / "archaeology_report.md").exists()
-    assert (out / "archaeology_share.md").exists()
-    assert "Failed to write file" in payload["errors"][0]["message"]
+    assert not (out / "archaeology.json").exists()
+    assert not (out / "archaeology_report.md").exists()
+    assert not (out / "archaeology_share.md").exists()
+    assert "Output path is a directory" in payload["errors"][0]["message"]
 
 
 def test_include_authors_with_ack_pii_emits_author_activity(tmp_path: Path) -> None:
