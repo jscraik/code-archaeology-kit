@@ -49,6 +49,7 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
 4. If instructions conflict, pause and ask which one wins
 
 ## Table of Contents
+- [Flaky Test Artifact Capture](#flaky-test-artifact-capture)
 
 - [Instruction map](docs/agents/01-instruction-map.md)
 - [Tooling policy](docs/agents/02-tooling-policy.md)
@@ -61,3 +62,18 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
 
 - Keep root guidance minimal; put detailed procedures in `docs/agents/`.
 - Use frontend website rules only for frontend or GitHub Pages tasks.
+
+## Flaky Test Artifact Capture
+- Run `bash scripts/test-with-artifacts.sh all` (or `pnpm run test:artifacts` / `npm run test:artifacts` / `bun run test:artifacts`) to emit machine-readable flaky evidence under `artifacts/test`.
+- Optional targeted modes:
+  - `bash scripts/test-with-artifacts.sh unit`
+  - `bash scripts/test-with-artifacts.sh integration`
+  - `bash scripts/test-with-artifacts.sh e2e`
+- Commit/retain stable artifact paths for local automation ingestion:
+  - `artifacts/test/summary-*.json`
+  - `artifacts/test/test-output-*.log`
+  - `artifacts/test/junit-*.xml` (when supported by test runner)
+  - `artifacts/test/*-results.json` (when supported by test runner)
+  - `artifacts/test/artifact-manifest.json`
+- Keep artifact filenames stable (no timestamps in filenames) so recurring flake scans can compare runs.
+

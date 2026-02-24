@@ -35,30 +35,44 @@ def render_report(payload: dict[str, Any]) -> str:
         "- Ignore rules applied:",
     ])
 
-    for rule in ignore_rules:
-        lines.append(f"  - `{rule}`")
+    if ignore_rules:
+        for rule in ignore_rules:
+            lines.append(f"  - `{rule}`")
+    else:
+        lines.append("  - (none)")
 
     lines.extend(["", "## Top High-Leverage Actions"])
-    for action in top_actions:
-        lines.append(
-            f"- [{action['priority']}] **{action['action']}** `{action['target']}` "
-            f"(effort={action['effort']}, leverage={action['expected_leverage']}) — {action['rationale']}"
-        )
+    if top_actions:
+        for action in top_actions:
+            lines.append(
+                f"- [{action['priority']}] **{action['action']}** `{action['target']}` "
+                f"(effort={action['effort']}, leverage={action['expected_leverage']}) — {action['rationale']}"
+            )
+    else:
+        lines.append("- (none)")
 
     lines.extend(["", "## Abandoned structures"])
-    for row in payload["detectors"]["abandoned_structures"][:10]:
-        lines.append(
-            f"- `{row['file']}` ({row['historical_commits']} commits, {row['days_since_last_change']}d stale, "
-            f"class={row['path_class']}, confidence={row['confidence']})"
-        )
+    abandoned_rows = payload["detectors"]["abandoned_structures"][:10]
+    if abandoned_rows:
+        for row in abandoned_rows:
+            lines.append(
+                f"- `{row['file']}` ({row['historical_commits']} commits, {row['days_since_last_change']}d stale, "
+                f"class={row['path_class']}, confidence={row['confidence']})"
+            )
+    else:
+        lines.append("- (none)")
 
     lines.extend(["", "## Temporal coupling"])
-    for row in payload["detectors"]["temporal_coupling"]["pairs"][:10]:
-        log_coupled_flag = " 🔌 (logically coupled)" if row.get("is_logically_coupled") else ""
-        lines.append(
-            f"- `{row['file_a']}` <-> `{row['file_b']}` "
-            f"(co-changes={row['co_change_commits']}, ratio={row['coupling_ratio']}, class={row['coupling_class']}){log_coupled_flag}"
-        )
+    temporal_rows = payload["detectors"]["temporal_coupling"]["pairs"][:10]
+    if temporal_rows:
+        for row in temporal_rows:
+            log_coupled_flag = " 🔌 (logically coupled)" if row.get("is_logically_coupled") else ""
+            lines.append(
+                f"- `{row['file_a']}` <-> `{row['file_b']}` "
+                f"(co-changes={row['co_change_commits']}, ratio={row['coupling_ratio']}, class={row['coupling_class']}){log_coupled_flag}"
+            )
+    else:
+        lines.append("- (none)")
 
     lines.extend(["", "## Coupling classes"])
     class_counts: dict[str, int] = defaultdict(int)
@@ -69,8 +83,12 @@ def render_report(payload: dict[str, Any]) -> str:
         lines.append(f"- {coupling_class}: {class_counts.get(coupling_class, 0)}")
 
     lines.extend(["", "## Era segmentation"])
-    for row in payload["detectors"]["era_segmentation"]:
-        lines.append(f"- {row['era']}: {row['label']} ({row['commits']} commits)")
+    eras = payload["detectors"]["era_segmentation"]
+    if eras:
+        for row in eras:
+            lines.append(f"- {row['era']}: {row['label']} ({row['commits']} commits)")
+    else:
+        lines.append("- (none)")
 
     if payload["errors"]:
         lines.extend(["", "## Errors"])

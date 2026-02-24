@@ -14,10 +14,17 @@ from .diff import diff_reports
 
 def _append_event(output_dir: Path, event: dict[str, Any]) -> Path:
     output = output_dir.expanduser().resolve()
-    output.mkdir(parents=True, exist_ok=True)
+    try:
+        output.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ArchaeologyError(f"Failed to prepare output directory: {output}") from exc
+
     path = output / "archaeology_events.jsonl"
-    with path.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+    try:
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, separators=(",", ":")) + "\n")
+    except OSError as exc:
+        raise ArchaeologyError(f"Failed to write file: {path}") from exc
     return path
 
 
@@ -73,9 +80,34 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.command == "scan":
-        if args.include_authors and not args.ack_pii:
-            print("error: --include-authors requires --ack-pii", file=sys.stderr)
+        def emit_scan_error(message: str) -> int:
+            if args.json:
+                print(
+                    json.dumps(
+                        {
+                            "ok": False,
+                            "schema": "cak.scan.v1",
+                            "artifacts": {"json": None, "markdown": None},
+                            "share": {"snippet_markdown": None, "events_jsonl": None},
+                            "top_actions": [],
+                            "notices": [],
+                            "errors": [{"code": "SCAN_ERROR", "message": message}],
+                        },
+                        indent=2,
+                    )
+                )
+            else:
+                print(f"error: {message}", file=sys.stderr)
             return 2
+
+        if args.include_authors and not args.ack_pii:
+            return emit_scan_error("--include-authors requires --ack-pii")
+        if args.share_snippet and not args.force:
+            share_target = args.output_dir.expanduser().resolve() / "archaeology_share.md"
+            if share_target.exists() and share_target.is_dir():
+                return emit_scan_error(f"Output path is a directory: {share_target}")
+            if share_target.exists():
+                return emit_scan_error(f"Refusing overwrite: {share_target} (use --force)")
         try:
             payload = analyze_repo(
                 repo=args.repo,
@@ -110,8 +142,7 @@ def main() -> int:
                     },
                 )
         except ArchaeologyError as exc:
-            print(f"error: {exc}", file=sys.stderr)
-            return 2
+            return emit_scan_error(str(exc))
 
         if args.json:
             print(json.dumps({

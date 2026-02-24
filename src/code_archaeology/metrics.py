@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from .models import Commit, FileChange
+from .models import Commit
 
 from .utils import classify_path, confidence, matches_any, LOW_VALUE_ABANDONED_GLOBS
 from .ast_coupling import check_logical_coupling
@@ -14,6 +14,11 @@ def abandoned_structures(
     min_churn: int,
     stale_days: int = 90,
 ) -> list[dict[str, Any]]:
+    if min_churn < 1:
+        raise ValueError("min_churn must be >= 1")
+    if stale_days < 0:
+        raise ValueError("stale_days must be >= 0")
+
     now = datetime.now(timezone.utc)
     stats: dict[str, dict[str, Any]] = defaultdict(
         lambda: {"commits": 0, "recent": 0, "last": None, "authors": set()}
@@ -95,20 +100,21 @@ def temporal_coupling(
     max_files_per_commit: int,
     large_commit_strategy: str,
 ) -> dict[str, Any]:
+    if min_co_changes < 1:
+        raise ValueError("min_co_changes must be >= 1")
+    if max_files_per_commit < 2:
+        raise ValueError("max_files_per_commit must be >= 2")
+    if large_commit_strategy not in {"cap", "skip"}:
+        raise ValueError("large_commit_strategy must be one of: cap, skip")
+
     pair_counts: dict[tuple[str, str], int] = defaultdict(int)
     file_counts: dict[str, int] = defaultdict(int)
+    imports_cache: dict[str, set[str]] = {}
     skipped = 0
     capped = 0
 
     for commit in commits:
         files = sorted({f.path for f in commit.files})
-        if len(files) < 2:
-            for file_path in files:
-                file_counts[file_path] += 1
-            continue
-
-        for file_path in files:
-            file_counts[file_path] += 1
 
         if len(files) > max_files_per_commit:
             if large_commit_strategy == "skip":
@@ -116,6 +122,12 @@ def temporal_coupling(
                 continue
             capped += 1
             files = files[:max_files_per_commit]
+
+        for file_path in files:
+            file_counts[file_path] += 1
+
+        if len(files) < 2:
+            continue
 
         for idx, left in enumerate(files):
             for right in files[idx + 1 :]:
@@ -133,7 +145,7 @@ def temporal_coupling(
         risk_bonus = 0.15 if coupling_class in {"risky", "suspicious"} else 0.0
         is_logically_coupled = False
         if coupling_class in {"risky", "suspicious"}:
-            is_logically_coupled = check_logical_coupling(repo_path, left, right)
+            is_logically_coupled = check_logical_coupling(repo_path, left, right, imports_cache=imports_cache)
             if is_logically_coupled:
                 risk_bonus = 0.35
                 coupling_class = "suspicious" # elevate to suspicious if logically coupled
@@ -233,7 +245,7 @@ def compute_base_metrics(commits: list[Commit], include_authors: bool, include_c
             commit_themes["other"] += 1
 
         if include_authors:
-            author_counts[f"{commit['author_name']} <{commit['author_email']}>"] += 1
+            author_counts[f"{commit.author_name} <{commit.author_email}>"] += 1
 
         seen_langs: set[str] = set()
         for file_change in commit.files:
@@ -246,7 +258,12 @@ def compute_base_metrics(commits: list[Commit], include_authors: bool, include_c
                 ".py": "Python",
                 ".ts": "TypeScript",
                 ".tsx": "TypeScript",
+                ".mts": "TypeScript",
+                ".cts": "TypeScript",
                 ".js": "JavaScript",
+                ".jsx": "JavaScript",
+                ".mjs": "JavaScript",
+                ".cjs": "JavaScript",
                 ".java": "Java",
                 ".kt": "Kotlin",
                 ".go": "Go",
@@ -298,8 +315,9 @@ def compute_base_metrics(commits: list[Commit], include_authors: bool, include_c
 
 def build_dig_plan(payload: dict[str, Any], top_actions: int) -> list[dict[str, Any]]:
     actions: list[dict[str, Any]] = []
+    source_limit = max(top_actions, 5)
 
-    for item in payload["detectors"]["abandoned_structures"][:5]:
+    for item in payload["detectors"]["abandoned_structures"][:source_limit]:
         leverage = "high" if item["path_class"] == "product" else "medium"
         effort = "medium" if item["historical_commits"] >= 10 else "low"
         actions.append(
@@ -316,7 +334,7 @@ def build_dig_plan(payload: dict[str, Any], top_actions: int) -> list[dict[str, 
             }
         )
 
-    for pair in payload["detectors"]["temporal_coupling"]["pairs"][:5]:
+    for pair in payload["detectors"]["temporal_coupling"]["pairs"][:source_limit]:
         leverage = "high" if pair["coupling_class"] in {"risky", "suspicious"} else "medium"
         actions.append(
             {

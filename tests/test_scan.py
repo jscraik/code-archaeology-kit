@@ -255,6 +255,129 @@ def test_include_authors_requires_ack_pii(tmp_path: Path) -> None:
     assert "--ack-pii" in result.stderr
 
 
+def test_scan_json_mode_emits_structured_error_for_validation_failures(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "README.md", "x\n", "docs: init")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--include-authors",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["schema"] == "cak.scan.v1"
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "--ack-pii" in payload["errors"][0]["message"]
+
+
+def test_include_authors_with_ack_pii_emits_author_activity(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "README.md", "x\n", "docs: init")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--include-authors",
+            "--ack-pii",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((out / "archaeology.json").read_text())
+    assert payload["settings"]["include_authors"] is True
+    assert payload["base_metrics"]["author_activity"][0]["author"].startswith("Test User <")
+
+
+def test_scan_supports_sha256_git_repositories(tmp_path: Path) -> None:
+    import pytest
+
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    try:
+        subprocess.run(
+            ["git", "init", "--object-format=sha256", str(repo)],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except subprocess.CalledProcessError:
+        pytest.skip("git does not support --object-format=sha256 on this system")
+
+    subprocess.run(["git", "-C", str(repo), "config", "user.name", "Test User"], check=True)
+    subprocess.run(["git", "-C", str(repo), "config", "user.email", "test@example.com"], check=True)
+    (repo / "src").mkdir(parents=True, exist_ok=True)
+    (repo / "src" / "a.py").write_text("print(1)\n")
+    subprocess.run(["git", "-C", str(repo), "add", "src/a.py"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "feat: add a"], check=True, capture_output=True, text=True)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((out / "archaeology.json").read_text())
+    assert len(payload["summary"]["head_commit"]) == 64
+
+
 def test_ignore_glob_filters_generated_noise(tmp_path: Path) -> None:
     root = Path(__file__).resolve().parents[1]
     repo = tmp_path / "repo"
@@ -291,3 +414,353 @@ def test_ignore_glob_filters_generated_noise(tmp_path: Path) -> None:
     payload = json.loads((out / "archaeology.json").read_text())
     churn_files = {row["file"] for row in payload["base_metrics"]["file_churn"]}
     assert all("__pycache__" not in path for path in churn_files)
+
+
+def test_default_ignores_filter_nested_dist_and_build_directories(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    _commit(repo, "packages/web/dist/bundle.js", "console.log(1)\n", "chore: dist output")
+    _commit(repo, "services/api/build/output.txt", "artifact\n", "chore: build output")
+    _commit(repo, "apps/mobile/poetry.lock", "lock\n", "chore: lockfile")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((out / "archaeology.json").read_text())
+    churn_files = {row["file"] for row in payload["base_metrics"]["file_churn"]}
+    assert "packages/web/dist/bundle.js" not in churn_files
+    assert "services/api/build/output.txt" not in churn_files
+    assert "apps/mobile/poetry.lock" not in churn_files
+
+
+def test_default_ignores_apply_after_rename_normalization(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    subprocess.run(["git", "-C", str(repo), "mv", "src/a.py", "src/poetry.lock"], check=True)
+    subprocess.run(["git", "-C", str(repo), "commit", "-m", "chore: rename to lock"], check=True, capture_output=True, text=True)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((out / "archaeology.json").read_text())
+    churn_files = {row["file"] for row in payload["base_metrics"]["file_churn"]}
+    assert "src/poetry.lock" not in churn_files
+
+
+def test_scan_share_snippet_fails_before_writing_when_share_exists(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+
+    # Seed existing share file only.
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "archaeology_share.md").write_text("existing\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--share-snippet",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "Refusing overwrite" in result.stderr
+    assert not (out / "archaeology.json").exists()
+
+
+def test_scan_share_snippet_json_mode_emits_structured_preflight_error(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "archaeology_share.md").write_text("existing\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--share-snippet",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "Refusing overwrite" in payload["errors"][0]["message"]
+    assert not (out / "archaeology.json").exists()
+
+
+def test_scan_share_snippet_json_mode_reports_directory_target_error(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "archaeology_share.md").mkdir()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--share-snippet",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "Output path is a directory" in payload["errors"][0]["message"]
+
+
+def test_scan_empty_repository_returns_clear_error(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "Repository has no commits to analyze" in result.stderr
+
+
+def test_scan_json_mode_emits_structured_error_for_runtime_failures(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["schema"] == "cak.scan.v1"
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "Repository has no commits to analyze" in payload["errors"][0]["message"]
+
+
+def test_scan_rejects_non_positive_timeout(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    _init_repo(repo)
+    _commit(repo, "README.md", "x\n", "docs: init")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--timeout-seconds",
+            "0",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "--timeout-seconds must be >= 1" in payload["errors"][0]["message"]
+
+
+def test_scan_json_mode_emits_structured_error_when_output_dir_is_file(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out_file = tmp_path / "not_a_dir"
+
+    _init_repo(repo)
+    _commit(repo, "README.md", "x\n", "docs: init")
+    out_file.write_text("occupied\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out_file),
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert payload["errors"][0]["code"] == "SCAN_ERROR"
+    assert "output directory" in payload["errors"][0]["message"].lower()
+
+
+def test_scan_human_mode_reports_output_dir_file_error_without_traceback(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out_file = tmp_path / "not_a_dir"
+
+    _init_repo(repo)
+    _commit(repo, "README.md", "x\n", "docs: init")
+    out_file.write_text("occupied\n")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out_file),
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "error:" in result.stderr
+    assert "Traceback" not in result.stderr

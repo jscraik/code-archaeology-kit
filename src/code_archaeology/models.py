@@ -1,5 +1,5 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 
 @dataclass
@@ -17,4 +17,3 @@ class Commit:
     message: str
     files: list[FileChange]
     date_obj: datetime | None = None
-

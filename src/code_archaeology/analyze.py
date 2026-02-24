@@ -15,23 +15,36 @@ from .reporters import render_report, render_share_snippet
 
 def write_share_snippet(payload: dict[str, Any], output_dir: Path, force: bool) -> Path:
     output = output_dir.expanduser().resolve()
-    output.mkdir(parents=True, exist_ok=True)
+    try:
+        output.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ArchaeologyError(f"Failed to prepare output directory: {output}") from exc
 
     share_path = output / "archaeology_share.md"
+    if share_path.exists() and share_path.is_dir():
+        raise ArchaeologyError(f"Output path is a directory: {share_path}")
     if share_path.exists() and not force:
         raise ArchaeologyError(f"Refusing overwrite: {share_path} (use --force)")
 
     content = render_share_snippet(payload)
 
     tmp_path = share_path.with_name(f"{share_path.name}.tmp.{os.getpid()}")
-    with tmp_path.open("w", encoding="utf-8") as handle:
-        handle.write(content)
-        handle.flush()
+    try:
+        with tmp_path.open("w", encoding="utf-8") as handle:
+            handle.write(content)
+            handle.flush()
+            try:
+                os.fsync(handle.fileno())
+            except OSError:
+                pass
+        tmp_path.replace(share_path)
+    except OSError as exc:
         try:
-            os.fsync(handle.fileno())
+            if tmp_path.exists():
+                tmp_path.unlink()
         except OSError:
             pass
-    tmp_path.replace(share_path)
+        raise ArchaeologyError(f"Failed to write file: {share_path}") from exc
 
     return share_path
 
@@ -64,6 +77,8 @@ def analyze_repo(
         raise ArchaeologyError("--since-days must be >= 1")
     if min_churn_threshold < 1:
         raise ArchaeologyError("--min-churn-threshold must be >= 1")
+    if timeout_seconds < 1:
+        raise ArchaeologyError("--timeout-seconds must be >= 1")
     if max_commits < 1:
         raise ArchaeologyError("--max-commits must be >= 1")
     if max_files_per_commit < 2:
@@ -85,14 +100,26 @@ def analyze_repo(
 
     start = time.time()
 
-    commits, truncated = parse_git_log(
-        repo=repo_path,
-        since_days=since_days,
-        timeout_seconds=timeout_seconds,
-        max_commits=max_commits,
-        ignore_globs=merged_ignore_globs,
-    )
-    head = run_git(["git", "-C", str(repo_path), "rev-parse", "HEAD"], timeout_seconds).strip()
+    try:
+        commits, truncated = parse_git_log(
+            repo=repo_path,
+            since_days=since_days,
+            timeout_seconds=timeout_seconds,
+            max_commits=max_commits,
+            ignore_globs=merged_ignore_globs,
+        )
+    except ArchaeologyError as exc:
+        message = str(exc)
+        if "does not have any commits yet" in message or "ambiguous argument 'HEAD'" in message:
+            raise ArchaeologyError("Repository has no commits to analyze") from exc
+        raise
+    try:
+        head = run_git(["git", "-C", str(repo_path), "rev-parse", "HEAD"], timeout_seconds).strip()
+    except ArchaeologyError as exc:
+        message = str(exc)
+        if "does not have any commits yet" in message or "ambiguous argument 'HEAD'" in message:
+            raise ArchaeologyError("Repository has no commits to analyze") from exc
+        raise
 
     temporal = temporal_coupling(repo_path, commits, max(2, min_churn_threshold), max_files_per_commit, large_commit_strategy)
 
@@ -178,32 +205,51 @@ def analyze_repo(
     payload["actionability"]["top_actions"] = build_dig_plan(payload, top_actions=top_actions)
     payload["run_metadata"]["runtime_ms"] = int((time.time() - start) * 1000)
 
-    _validate_payload_schema(payload, Path(__file__).resolve().parents[2] / "config" / "schemas" / "archaeology.schema.json")
+    try:
+        _validate_payload_schema(payload, Path(__file__).resolve().parents[2] / "config" / "schemas" / "archaeology.schema.json")
+    except Exception as exc:
+        raise ArchaeologyError(f"Schema validation failed: {exc}") from exc
 
     return payload
 
 def write_payload(payload: dict[str, Any], output_dir: Path, fmt: str, force: bool) -> tuple[Path | None, Path | None]:
+    if fmt not in {"json", "md", "both"}:
+        raise ArchaeologyError("--format must be one of: json, md, both")
+
     output = output_dir.expanduser().resolve()
-    output.mkdir(parents=True, exist_ok=True)
+    try:
+        output.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        raise ArchaeologyError(f"Failed to prepare output directory: {output}") from exc
 
     json_path = output / "archaeology.json"
     md_path = output / "archaeology_report.md"
 
-    def atomic_write(path: Path, content: str) -> None:
+    def write_temp(path: Path, content: str) -> Path:
         tmp_path = path.with_name(f"{path.name}.tmp.{os.getpid()}")
-        with tmp_path.open("w", encoding="utf-8") as handle:
-            handle.write(content)
-            handle.flush()
+        try:
+            with tmp_path.open("w", encoding="utf-8") as handle:
+                handle.write(content)
+                handle.flush()
+                try:
+                    os.fsync(handle.fileno())
+                except OSError:
+                    pass
+        except OSError as exc:
             try:
-                os.fsync(handle.fileno())
+                if tmp_path.exists():
+                    tmp_path.unlink()
             except OSError:
                 pass
-        tmp_path.replace(path)
+            raise ArchaeologyError(f"Failed to write file: {path}") from exc
+        return tmp_path
 
     json_content: str | None = None
     md_content: str | None = None
 
     if fmt in {"json", "both"}:
+        if json_path.exists() and json_path.is_dir():
+            raise ArchaeologyError(f"Output path is a directory: {json_path}")
         if json_path.exists() and not force:
             raise ArchaeologyError(f"Refusing overwrite: {json_path} (use --force)")
         json_content = json.dumps(payload, indent=2)
@@ -211,6 +257,8 @@ def write_payload(payload: dict[str, Any], output_dir: Path, fmt: str, force: bo
         json_path = None
 
     if fmt in {"md", "both"}:
+        if md_path.exists() and md_path.is_dir():
+            raise ArchaeologyError(f"Output path is a directory: {md_path}")
         if md_path.exists() and not force:
             raise ArchaeologyError(f"Refusing overwrite: {md_path} (use --force)")
         md_content = render_report(payload)
@@ -218,9 +266,64 @@ def write_payload(payload: dict[str, Any], output_dir: Path, fmt: str, force: bo
         md_path = None
 
     # Write temps first, then replace, to reduce partial-final state when fmt="both".
+    pending: list[tuple[Path, str]] = []
     if json_path is not None and json_content is not None:
-        atomic_write(json_path, json_content)
+        pending.append((json_path, json_content))
     if md_path is not None and md_content is not None:
-        atomic_write(md_path, md_content)
+        pending.append((md_path, md_content))
+
+    temp_files: list[tuple[Path, Path]] = []
+    try:
+        for final_path, content in pending:
+            temp_path = write_temp(final_path, content)
+            temp_files.append((temp_path, final_path))
+    except ArchaeologyError:
+        for temp_path, _ in temp_files:
+            try:
+                if temp_path.exists():
+                    temp_path.unlink()
+            except OSError:
+                pass
+        raise
+
+    backups: list[tuple[Path, Path]] = []
+    replaced_finals: list[Path] = []
+    try:
+        for _, final_path in temp_files:
+            if final_path.exists():
+                backup_path = final_path.with_name(f"{final_path.name}.bak.{os.getpid()}")
+                final_path.replace(backup_path)
+                backups.append((final_path, backup_path))
+
+        for temp_path, final_path in temp_files:
+            temp_path.replace(final_path)
+            replaced_finals.append(final_path)
+    except OSError as exc:
+        for stale_temp, _ in temp_files:
+            try:
+                if stale_temp.exists():
+                    stale_temp.unlink()
+            except OSError:
+                pass
+        for final_path in replaced_finals:
+            try:
+                if final_path.exists():
+                    final_path.unlink()
+            except OSError:
+                pass
+        for final_path, backup_path in reversed(backups):
+            try:
+                if backup_path.exists():
+                    backup_path.replace(final_path)
+            except OSError:
+                pass
+        raise ArchaeologyError(f"Failed to write file: {final_path}") from exc
+    finally:
+        for _, backup_path in backups:
+            try:
+                if backup_path.exists():
+                    backup_path.unlink()
+            except OSError:
+                pass
 
     return json_path, md_path
