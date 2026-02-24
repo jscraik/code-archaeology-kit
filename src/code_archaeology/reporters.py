@@ -90,9 +90,10 @@ def render_report(payload: dict[str, Any]) -> str:
     else:
         lines.append("- (none)")
 
-    if payload["errors"]:
+    errors = payload.get("errors", [])
+    if errors:
         lines.extend(["", "## Errors"])
-        for error in payload["errors"]:
+        for error in errors:
             lines.append(f"- `{error['code']}`: {error['message']}")
 
     return "\n".join(lines) + "\n"

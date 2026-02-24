@@ -29,3 +29,13 @@ def test_render_report_includes_empty_state_placeholders():
     assert "## Abandoned structures\n- (none)" in out
     assert "## Temporal coupling\n- (none)" in out
     assert "## Era segmentation\n- (none)" in out
+
+
+def test_render_report_tolerates_missing_errors_key_for_older_payloads():
+    payload = _minimal_payload()
+    payload.pop("errors")
+
+    out = render_report(payload)
+
+    assert "# Code Archaeology Report" in out
+    assert "## Errors" not in out
