@@ -1,0 +1,18 @@
+{
+  "contextFiles": [
+    { "path": "AGENTS.md", "role": "agent workflow and governance policy" },
+    { "path": "README.md", "role": "project overview and usage" },
+    { "path": "CONTRIBUTING.md", "role": "contribution and PR quality expectations" }
+  ],
+  "apiSpecs": [
+    "src/**/*",
+    "app/src/**/*",
+    "Sources/**/*",
+    "packages/**/*",
+    "platforms/**/*"
+  ],
+  "schemaFiles": [
+    "docs/**/*.md",
+    "**/*.schema.json"
+  ]
+}
