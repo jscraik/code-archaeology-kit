@@ -17,6 +17,13 @@ Use this tool when you want fast, bounded git-history intelligence for a repo. I
 python -m pip install -e .
 ```
 
+### Developer install (includes test tooling)
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
 ## Quickstart
 
 ```bash
@@ -86,6 +93,14 @@ After a successful run you should see:
 - `artifacts/archaeology.json`.
 - `artifacts/archaeology_report.md`.
 - (optional) `artifacts/archaeology_share.md`.
+
+## Local validation
+
+```bash
+npm test
+npm run test:deep
+npm run docs:lint
+```
 
 ## Troubleshooting
 

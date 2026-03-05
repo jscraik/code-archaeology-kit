@@ -34,10 +34,11 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
 
 ## Non-standard build/typecheck commands
 
-- Install (modern pip): `python3 -m pip install -e .`
-- Install fallback (older pip): `python3 -m pip install .`
+- Install with test deps: `python3 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"`
+- Install fallback (older pip): `.venv/bin/python -m pip install ".[dev]"`
 - CLI check (run-from-source): `PYTHONPATH=src python3 -m code_archaeology scan --help`
-- Tests: `python3 -m pytest -q`
+- Tests: `npm test` (prefers `.venv/bin/python`, falls back to `python3`)
+- Deep tests/artifacts: `npm run test:deep`
 - Docs readability: `python3 scripts/check_readability.py README.md`
 - No dedicated static typecheck command is configured.
 
@@ -49,7 +50,6 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
 4. If instructions conflict, pause and ask which one wins
 
 ## Table of Contents
-- [Flaky Test Artifact Capture](#flaky-test-artifact-capture)
 
 - [Instruction map](docs/agents/01-instruction-map.md)
 - [Tooling policy](docs/agents/02-tooling-policy.md)
@@ -57,6 +57,7 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
 - [Validation and checks](docs/agents/04-validation.md)
 - [Contradictions and cleanup](docs/agents/05-contradictions-and-cleanup.md)
 - [Frontend website rules](docs/agents/06-frontend-website-rules.md)
+- [Flaky Test Artifact Capture](#flaky-test-artifact-capture)
 
 ## Notes
 
@@ -64,6 +65,7 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
 - Use frontend website rules only for frontend or GitHub Pages tasks.
 
 ## Flaky Test Artifact Capture
+
 - Run `bash scripts/test-with-artifacts.sh all` (or `pnpm run test:artifacts` / `npm run test:artifacts` / `bun run test:artifacts`) to emit machine-readable flaky evidence under `artifacts/test`.
 - Optional targeted modes:
   - `bash scripts/test-with-artifacts.sh unit`
@@ -76,4 +78,3 @@ Code Archaeology Kit is a standalone Python CLI that scans git history and emits
   - `artifacts/test/*-results.json` (when supported by test runner)
   - `artifacts/test/artifact-manifest.json`
 - Keep artifact filenames stable (no timestamps in filenames) so recurring flake scans can compare runs.
-

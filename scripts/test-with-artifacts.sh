@@ -132,19 +132,11 @@ run_vitest_with_reporters() {
 
 run_pytest() {
   local name="$1"
-  local base_cmd=""
-  local py_prefix=""
-  if [[ -d src ]]; then
-    py_prefix="PYTHONPATH=src "
+  local runner_script="scripts/run-pytest.sh"
+  if [[ ! -x "$runner_script" ]]; then
+    chmod +x "$runner_script" >/dev/null 2>&1 || true
   fi
-
-  if command -v uv >/dev/null 2>&1 && [[ -f uv.lock ]]; then
-    base_cmd="${py_prefix}uv run pytest"
-  else
-    base_cmd="${py_prefix}python3 -m pytest"
-  fi
-
-  run_step "$name" "$base_cmd --junitxml=$ARTIFACT_DIR/junit-${name}.xml"
+  run_step "$name" "bash $runner_script --junitxml=$ARTIFACT_DIR/junit-${name}.xml"
 }
 
 run_unit() {

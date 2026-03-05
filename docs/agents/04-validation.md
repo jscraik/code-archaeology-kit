@@ -8,16 +8,17 @@
 
 ## Commands
 
-- `python3 -m pip install -e .`
+- `python3 -m venv .venv && .venv/bin/python -m pip install -e ".[dev]"`
 - `python3 scripts/check_readability.py README.md`
-- `python3 -m pytest -q`
 - `PYTHONPATH=src python3 -m code_archaeology scan --help`
+- `npm test`
+- `npm run test:deep`
 - `npm run docs:lint`
 
-## Observed results (2026-02-24)
+## Observed results (2026-03-05)
 
-- `python3 -m pip install -e .` fails with system `pip 21.2.4` (editable install unsupported for this `pyproject.toml` setup).
-- `python3 -m pip install .` succeeds as fallback.
-- `python3 -m pytest -q` fails because `pytest` is not installed in the active Python environment.
+- `.venv/bin/python -m pip install -e ".[dev]"` succeeds for editable install with test deps.
 - `PYTHONPATH=src python3 -m code_archaeology scan --help` succeeds.
+- `npm test` succeeds (uses `.venv` Python when available).
+- `npm run test:deep` succeeds and writes artifacts under `artifacts/test`.
 - `npm run docs:lint` succeeds when markdown files pass lint rules.
