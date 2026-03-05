@@ -9,6 +9,109 @@ from .utils import classify_path, confidence, matches_any, LOW_VALUE_ABANDONED_G
 from .ast_coupling import check_logical_coupling
 
 
+_PRIORITY_SCORE = {"high": 2, "medium": 1, "low": 0}
+_LEVERAGE_SCORE = {"high": 2, "medium": 1, "low": 0}
+_EFFORT_SCORE = {"low": 2, "medium": 1, "high": 0}
+
+
+def _action_key(action: dict[str, Any]) -> str:
+    return f"{action.get('action', '')}::{action.get('target', '')}"
+
+
+def rerank_top_actions(
+    raw_actions: list[dict[str, Any]],
+    baseline_actions: list[dict[str, Any]],
+    top_actions: int,
+    annotate_reasons: bool = False,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if top_actions < 1:
+        raise ValueError("top_actions must be >= 1")
+
+    if not raw_actions:
+        return [], []
+
+    baseline_index = {_action_key(action): idx + 1 for idx, action in enumerate(baseline_actions)}
+
+    scored: list[tuple[tuple[Any, ...], int, dict[str, Any], str]] = []
+    for source_index, action in enumerate(raw_actions):
+        copied = dict(action)
+        key = _action_key(copied)
+        baseline_rank = baseline_index.get(key)
+        unseen = baseline_rank is None
+        reason = "not_seen_in_baseline" if unseen else f"seen_in_baseline_rank_{baseline_rank}"
+
+        priority_score = _PRIORITY_SCORE.get(str(copied.get("priority", "medium")), 0)
+        leverage_score = _LEVERAGE_SCORE.get(str(copied.get("expected_leverage", "medium")), 0)
+        effort_score = _EFFORT_SCORE.get(str(copied.get("effort", "medium")), 1)
+
+        sort_key = (
+            0 if unseen else 1,  # unseen first
+            -priority_score,
+            -leverage_score,
+            -effort_score,
+            baseline_rank or 10_000,
+            source_index,
+            str(copied.get("target", "")),
+        )
+        scored.append((sort_key, source_index, copied, reason))
+
+    scored.sort(key=lambda row: row[0])
+    ranked_all = [entry[2] for entry in scored]
+    reasons_by_key = {_action_key(entry[2]): entry[3] for entry in scored}
+    ranked_top = ranked_all[:top_actions]
+    raw_top = raw_actions[:top_actions]
+
+    raw_top_pos = {_action_key(action): idx + 1 for idx, action in enumerate(raw_top)}
+    ranked_top_pos = {_action_key(action): idx + 1 for idx, action in enumerate(ranked_top)}
+
+    changes: list[dict[str, Any]] = []
+    all_keys = sorted(set(raw_top_pos) | set(ranked_top_pos))
+    for key in all_keys:
+        original_position = raw_top_pos.get(key)
+        new_position = ranked_top_pos.get(key)
+        if original_position == new_position:
+            continue
+
+        representative = None
+        for action in ranked_top:
+            if _action_key(action) == key:
+                representative = action
+                break
+        if representative is None:
+            for action in raw_top:
+                if _action_key(action) == key:
+                    representative = action
+                    break
+        if representative is None:
+            continue
+
+        reason = reasons_by_key.get(key, "reordered_by_adaptive_baseline")
+        changes.append(
+            {
+                "action": representative.get("action", ""),
+                "target": representative.get("target", ""),
+                "original_position": original_position,
+                "new_position": new_position,
+                "reason": reason,
+            }
+        )
+
+    if annotate_reasons:
+        annotated: list[dict[str, Any]] = []
+        for action in ranked_top:
+            copied = dict(action)
+            key = _action_key(copied)
+            reason = reasons_by_key.get(key)
+            if reason:
+                existing = str(copied.get("rationale", "") or "").strip()
+                suffix = f"adaptive_reason={reason}"
+                copied["rationale"] = f"{existing} | {suffix}".strip(" |")
+            annotated.append(copied)
+        ranked_top = annotated
+
+    return ranked_top, changes
+
+
 def abandoned_structures(
     commits: list[Commit],
     min_churn: int,

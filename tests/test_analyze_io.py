@@ -8,7 +8,7 @@ from code_archaeology.utils import ArchaeologyError
 
 def _minimal_payload() -> dict:
     return {
-        "schema_version": "1.2.0",
+        "schema_version": "1.2.1",
         "summary": {
             "repo_path": "repo",
             "head_commit": "abcdef1",
@@ -27,6 +27,8 @@ def _minimal_payload() -> dict:
             "top_actions": 1,
             "use_default_ignores": True,
             "large_commit_strategy": "cap",
+            "adaptive_mode": "disabled",
+            "adaptive_baseline_artifact": None,
         },
         "notices": [],
         "run_metadata": {
@@ -36,6 +38,16 @@ def _minimal_payload() -> dict:
             "truncated": False,
             "runtime_ms": 0,
             "ignore_rules_applied": [],
+            "adaptive_precision": {
+                "mode": "disabled",
+                "strategy_version": "v1",
+                "baseline_available": False,
+                "baseline_source": None,
+                "baseline_reason": "adaptive_disabled",
+                "settings_fingerprint": "000000000000000000000000",
+                "baseline_schema_version": None,
+                "baseline_head_commit": None,
+            },
         },
         "detectors": {
             "abandoned_structures": [],
@@ -56,7 +68,7 @@ def _minimal_payload() -> dict:
             "language_breakdown": [],
         },
         "dig_plan": [],
-        "actionability": {"top_actions": []},
+        "actionability": {"top_actions": [], "shadow_top_actions": [], "adaptive_changes": []},
         "errors": [],
     }
 

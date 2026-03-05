@@ -17,6 +17,13 @@ Use this tool when you want fast, bounded git-history intelligence for a repo. I
 python -m pip install -e .
 ```
 
+### Developer install (includes test tooling)
+
+```bash
+python -m venv .venv
+.venv/bin/python -m pip install -e ".[dev]"
+```
+
 ## Quickstart
 
 ```bash
@@ -25,6 +32,7 @@ cak scan \
   --since-days 365 \
   --format both \
   --top-actions 3 \
+  --adaptive-mode shadow \
   --share-snippet \
   --output-dir ./artifacts
 ```
@@ -36,6 +44,7 @@ PYTHONPATH=src python -m code_archaeology scan \
   --since-days 365 \
   --format both \
   --top-actions 3 \
+  --adaptive-mode shadow \
   --share-snippet \
   --output-dir ./artifacts
 ```
@@ -60,6 +69,11 @@ PYTHONPATH=src python -m code_archaeology scan \
 ## Signal-quality controls
 
 - `--large-commit-strategy {cap,skip}` configures temporal coupling for large commits. Use it for commits that touch more than `--max-files-per-commit` files. Default is `cap`.
+- `--adaptive-mode {disabled,shadow,adaptive}` controls adaptive top-action ranking against a baseline artifact.
+  - `disabled` (default): raw top actions.
+  - `shadow`: computes adaptive order in `actionability.shadow_top_actions` while leaving `top_actions` unchanged.
+  - `adaptive`: applies adaptive reranking to `top_actions`.
+- `--adaptive-baseline-artifact /path/to/archaeology.json` sets explicit baseline source. By default, adaptive modes use `<output-dir>/archaeology.json`.
 
 ## Contract highlights
 
@@ -79,6 +93,14 @@ After a successful run you should see:
 - `artifacts/archaeology.json`.
 - `artifacts/archaeology_report.md`.
 - (optional) `artifacts/archaeology_share.md`.
+
+## Local validation
+
+```bash
+npm test
+npm run test:deep
+npm run docs:lint
+```
 
 ## Troubleshooting
 

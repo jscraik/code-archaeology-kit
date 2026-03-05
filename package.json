@@ -8,6 +8,8 @@
     "test": "tests"
   },
   "scripts": {
+    "test": "bash scripts/run-pytest.sh -q",
+    "test:deep": "bash scripts/test-with-artifacts.sh all",
     "docs:lint": "markdownlint-cli2 \"**/*.md\" \"#node_modules\" \"#test-artifacts\" \"#tests\" \"#**/.pytest_cache\"",
     "docs:readability": "python scripts/check_readability.py README.md",
     "test:artifacts": "bash scripts/test-with-artifacts.sh all",

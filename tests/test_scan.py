@@ -46,6 +46,8 @@ def test_scan_help() -> None:
     assert "--include-commit-messages" in result.stdout
     assert "--large-commit-strategy" in result.stdout
     assert "--share-snippet" in result.stdout
+    assert "--adaptive-mode" in result.stdout
+    assert "--adaptive-baseline-artifact" in result.stdout
 
 
 def test_schema_valid_json() -> None:
@@ -96,7 +98,7 @@ def test_scan_generates_contract_and_top_actions(tmp_path: Path) -> None:
     assert wrapper["share"]["snippet_markdown"] is not None
     assert wrapper["share"]["events_jsonl"] is not None
     payload = json.loads((out / "archaeology.json").read_text())
-    assert payload["schema_version"] == "1.2.0"
+    assert payload["schema_version"] == "1.2.1"
     assert payload["summary"]["repo_path"] == "repo"
     assert isinstance(payload["notices"], list)
     assert len(payload["actionability"]["top_actions"]) == 2
@@ -852,3 +854,244 @@ def test_scan_human_mode_reports_output_dir_file_error_without_traceback(tmp_pat
     assert result.returncode == 2
     assert "error:" in result.stderr
     assert "Traceback" not in result.stderr
+
+
+def test_scan_adaptive_mode_uses_learn_mode_without_baseline(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    _commit(repo, "src/b.py", "print(2)\n", "feat: add b")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+            "--adaptive-mode",
+            "adaptive",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((out / "archaeology.json").read_text())
+    assert payload["run_metadata"]["adaptive_precision"]["mode"] == "learn"
+    assert payload["run_metadata"]["adaptive_precision"]["baseline_available"] is False
+    assert any(notice["code"] == "ADAPTIVE_BASELINE_FALLBACK" for notice in payload["notices"])
+
+
+def test_scan_shadow_mode_keeps_raw_top_actions_and_emits_shadow_actions(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    _commit(repo, "src/b.py", "print(2)\n", "feat: add b")
+
+    baseline_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert baseline_result.returncode == 0, baseline_result.stderr
+
+    _commit(repo, "src/c.py", "print(3)\n", "feat: add c")
+
+    shadow_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+            "--adaptive-mode",
+            "shadow",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert shadow_result.returncode == 0, shadow_result.stderr
+
+    payload = json.loads((out / "archaeology.json").read_text())
+    assert payload["run_metadata"]["adaptive_precision"]["mode"] == "shadow"
+    assert payload["actionability"]["top_actions"] == payload["dig_plan"][: payload["settings"]["top_actions"]]
+    assert isinstance(payload["actionability"]["shadow_top_actions"], list)
+    assert any(notice["code"] == "ADAPTIVE_SHADOW_MODE" for notice in payload["notices"])
+
+
+def test_scan_adaptive_mode_rewrites_top_action_rationales(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    _commit(repo, "src/b.py", "print(2)\n", "feat: add b")
+
+    baseline_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert baseline_result.returncode == 0, baseline_result.stderr
+
+    _commit(repo, "src/c.py", "print(3)\n", "feat: add c")
+
+    adaptive_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+            "--adaptive-mode",
+            "adaptive",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert adaptive_result.returncode == 0, adaptive_result.stderr
+
+    payload = json.loads((out / "archaeology.json").read_text())
+    assert payload["run_metadata"]["adaptive_precision"]["mode"] == "adaptive"
+    assert (
+        len(payload["actionability"]["top_actions"]) > 0
+    ), "expected at least one top action for adaptive annotation check"
+    assert all("adaptive_reason=" in row["rationale"] for row in payload["actionability"]["top_actions"])
+    assert any(notice["code"] == "ADAPTIVE_MODE_ACTIVE" for notice in payload["notices"])
+
+
+def test_scan_adaptive_mode_falls_back_to_learn_on_settings_mismatch(tmp_path: Path) -> None:
+    root = Path(__file__).resolve().parents[1]
+    repo = tmp_path / "repo"
+    out = tmp_path / "out"
+
+    _init_repo(repo)
+    _commit(repo, "src/a.py", "print(1)\n", "feat: add a")
+    _commit(repo, "src/b.py", "print(2)\n", "feat: add b")
+
+    baseline_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+            "--top-actions",
+            "2",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert baseline_result.returncode == 0, baseline_result.stderr
+
+    adaptive_result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "code_archaeology",
+            "scan",
+            "--repo",
+            str(repo),
+            "--output-dir",
+            str(out),
+            "--format",
+            "json",
+            "--force",
+            "--json",
+            "--top-actions",
+            "3",
+            "--adaptive-mode",
+            "adaptive",
+        ],
+        cwd=root,
+        env=_env_with_pythonpath(root),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert adaptive_result.returncode == 0, adaptive_result.stderr
+
+    payload = json.loads((out / "archaeology.json").read_text())
+    assert payload["run_metadata"]["adaptive_precision"]["mode"] == "learn"
+    assert payload["run_metadata"]["adaptive_precision"]["baseline_reason"].startswith("baseline_settings_")
+    assert any(notice["code"] == "ADAPTIVE_BASELINE_FALLBACK" for notice in payload["notices"])
