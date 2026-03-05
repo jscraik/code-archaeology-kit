@@ -1023,6 +1023,9 @@ def test_scan_adaptive_mode_rewrites_top_action_rationales(tmp_path: Path) -> No
 
     payload = json.loads((out / "archaeology.json").read_text())
     assert payload["run_metadata"]["adaptive_precision"]["mode"] == "adaptive"
+    assert (
+        len(payload["actionability"]["top_actions"]) > 0
+    ), "expected at least one top action for adaptive annotation check"
     assert all("adaptive_reason=" in row["rationale"] for row in payload["actionability"]["top_actions"])
     assert any(notice["code"] == "ADAPTIVE_MODE_ACTIVE" for notice in payload["notices"])
 

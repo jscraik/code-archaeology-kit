@@ -103,7 +103,9 @@ def rerank_top_actions(
             key = _action_key(copied)
             reason = reasons_by_key.get(key)
             if reason:
-                copied["rationale"] = f"{copied.get('rationale', '')} | adaptive_reason={reason}".strip()
+                existing = str(copied.get("rationale", "") or "").strip()
+                suffix = f"adaptive_reason={reason}"
+                copied["rationale"] = f"{existing} | {suffix}".strip(" |")
             annotated.append(copied)
         ranked_top = annotated
 

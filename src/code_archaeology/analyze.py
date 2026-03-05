@@ -102,10 +102,9 @@ def _load_baseline_actions(
         return [], state
 
     errors = payload.get("errors")
-    if isinstance(errors, list) and any(isinstance(error, dict) for error in errors):
-        if len(errors) > 0:
-            state["baseline_reason"] = "baseline_contains_errors"
-            return [], state
+    if isinstance(errors, list) and len(errors) > 0:
+        state["baseline_reason"] = "baseline_contains_errors"
+        return [], state
 
     summary = payload.get("summary")
     if not isinstance(summary, dict):
@@ -146,7 +145,7 @@ def _load_baseline_actions(
             else:
                 expected = baseline_settings.get(key)
             current = current_settings.get(key)
-            if current != expected and key in {"since_days", "max_files_per_commit", "top_actions", "large_commit_strategy"}:
+            if current != expected:
                 state["baseline_reason"] = f"baseline_settings_mismatch_{key}"
                 return [], state
 
