@@ -1,4 +1,5 @@
 from __future__ import annotations
+import hashlib
 import json
 import os
 import time
@@ -8,9 +9,160 @@ from typing import Any
 
 from .utils import ArchaeologyError, _notice, DEFAULT_IGNORE_GLOBS
 from .git import run_git, parse_git_log
-from .metrics import abandoned_structures, temporal_coupling, era_segmentation, compute_base_metrics, build_dig_plan
+from .metrics import (
+    abandoned_structures,
+    temporal_coupling,
+    era_segmentation,
+    compute_base_metrics,
+    build_dig_plan,
+    rerank_top_actions,
+)
 from .reporters import render_report, render_share_snippet
 
+
+SCHEMA_VERSION = "1.2.1"
+ADAPTIVE_STRATEGY_VERSION = "v1"
+ADAPTIVE_MODES = {"disabled", "shadow", "adaptive"}
+_ADAPTIVE_FINGERPRINT_KEYS = (
+    "since_days",
+    "min_churn_threshold",
+    "max_commits",
+    "max_files_per_commit",
+    "top_actions",
+    "large_commit_strategy",
+    "use_default_ignores",
+    "ignore_rules_applied",
+)
+
+
+def _settings_fingerprint(settings: dict[str, Any]) -> str:
+    payload = {key: settings.get(key) for key in _ADAPTIVE_FINGERPRINT_KEYS}
+    blob = json.dumps(payload, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
+
+
+def _repo_name_matches(baseline_repo: Any, current_repo_path: Path) -> bool:
+    if not isinstance(baseline_repo, str) or not baseline_repo.strip():
+        return False
+    try:
+        baseline_name = Path(baseline_repo).name
+    except Exception:
+        baseline_name = baseline_repo.split("/")[-1]
+    return baseline_name == current_repo_path.name
+
+
+def _load_baseline_actions(
+    baseline_path: Path | None,
+    current_repo_path: Path,
+    settings_fingerprint: str,
+    schema_version: str,
+    current_settings: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    state: dict[str, Any] = {
+        "baseline_available": False,
+        "baseline_source": None,
+        "baseline_reason": "baseline_not_requested",
+        "baseline_schema_version": None,
+        "baseline_head_commit": None,
+    }
+    if baseline_path is None:
+        return [], state
+
+    resolved = baseline_path.expanduser().resolve()
+    state["baseline_source"] = str(resolved)
+
+    if not resolved.exists():
+        state["baseline_reason"] = "baseline_not_found"
+        return [], state
+    if resolved.is_dir():
+        state["baseline_reason"] = "baseline_path_is_directory"
+        return [], state
+
+    try:
+        raw = resolved.read_text(encoding="utf-8")
+    except OSError:
+        state["baseline_reason"] = "baseline_unreadable"
+        return [], state
+
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        state["baseline_reason"] = "baseline_invalid_json"
+        return [], state
+    if not isinstance(payload, dict):
+        state["baseline_reason"] = "baseline_invalid_shape"
+        return [], state
+
+    baseline_schema_version = payload.get("schema_version")
+    state["baseline_schema_version"] = baseline_schema_version if isinstance(baseline_schema_version, str) else None
+    current_major = schema_version.split(".", 1)[0]
+    baseline_major = state["baseline_schema_version"].split(".", 1)[0] if state["baseline_schema_version"] else None
+    if baseline_major != current_major:
+        state["baseline_reason"] = "baseline_schema_major_mismatch"
+        return [], state
+
+    errors = payload.get("errors")
+    if isinstance(errors, list) and any(isinstance(error, dict) for error in errors):
+        if len(errors) > 0:
+            state["baseline_reason"] = "baseline_contains_errors"
+            return [], state
+
+    summary = payload.get("summary")
+    if not isinstance(summary, dict):
+        state["baseline_reason"] = "baseline_missing_summary"
+        return [], state
+    repo_path = summary.get("repo_path")
+    if not _repo_name_matches(repo_path, current_repo_path):
+        state["baseline_reason"] = "baseline_repo_mismatch"
+        return [], state
+    state["baseline_head_commit"] = summary.get("head_commit") if isinstance(summary.get("head_commit"), str) else None
+
+    baseline_run_meta = payload.get("run_metadata")
+    if not isinstance(baseline_run_meta, dict):
+        state["baseline_reason"] = "baseline_missing_run_metadata"
+        return [], state
+
+    baseline_adaptive = baseline_run_meta.get("adaptive_precision")
+    baseline_fp: str | None = None
+    if isinstance(baseline_adaptive, dict):
+        candidate = baseline_adaptive.get("settings_fingerprint")
+        if isinstance(candidate, str):
+            baseline_fp = candidate
+
+    if baseline_fp is not None:
+        if baseline_fp != settings_fingerprint:
+            state["baseline_reason"] = "baseline_settings_fingerprint_mismatch"
+            return [], state
+    else:
+        baseline_settings = payload.get("settings")
+        if not isinstance(baseline_settings, dict):
+            state["baseline_reason"] = "baseline_missing_settings"
+            return [], state
+        for key in _ADAPTIVE_FINGERPRINT_KEYS:
+            if key == "ignore_rules_applied":
+                continue
+            if key == "since_days":
+                expected = summary.get("since_days")
+            else:
+                expected = baseline_settings.get(key)
+            current = current_settings.get(key)
+            if current != expected and key in {"since_days", "max_files_per_commit", "top_actions", "large_commit_strategy"}:
+                state["baseline_reason"] = f"baseline_settings_mismatch_{key}"
+                return [], state
+
+    actionability = payload.get("actionability")
+    if not isinstance(actionability, dict):
+        state["baseline_reason"] = "baseline_missing_actionability"
+        return [], state
+    baseline_actions = actionability.get("top_actions")
+    if not isinstance(baseline_actions, list):
+        state["baseline_reason"] = "baseline_missing_top_actions"
+        return [], state
+
+    state["baseline_available"] = True
+    state["baseline_reason"] = "baseline_loaded"
+    filtered = [row for row in baseline_actions if isinstance(row, dict)]
+    return filtered, state
 
 
 def write_share_snippet(payload: dict[str, Any], output_dir: Path, force: bool) -> Path:
@@ -72,6 +224,8 @@ def analyze_repo(
     use_default_ignores: bool = True,
     top_actions: int = 3,
     large_commit_strategy: str = "cap",
+    adaptive_mode: str = "disabled",
+    adaptive_baseline_artifact: Path | None = None,
 ) -> dict[str, Any]:
     if since_days < 1:
         raise ArchaeologyError("--since-days must be >= 1")
@@ -87,6 +241,8 @@ def analyze_repo(
         raise ArchaeologyError("--top-actions must be >= 1")
     if large_commit_strategy not in {"cap", "skip"}:
         raise ArchaeologyError("--large-commit-strategy must be one of: cap, skip")
+    if adaptive_mode not in ADAPTIVE_MODES:
+        raise ArchaeologyError("--adaptive-mode must be one of: disabled, shadow, adaptive")
 
     repo_path = repo.expanduser().resolve()
     if not repo_path.exists() or not repo_path.is_dir() or not (repo_path / ".git").exists():
@@ -160,8 +316,26 @@ def analyze_repo(
             )
         )
 
+    settings: dict[str, Any] = {
+        "since_days": since_days,
+        "min_churn_threshold": min_churn_threshold,
+        "include_authors": include_authors,
+        "include_repo_path": include_repo_path,
+        "include_commit_messages": include_commit_messages,
+        "max_commits": max_commits,
+        "max_files_per_commit": max_files_per_commit,
+        "timeout_seconds": timeout_seconds,
+        "top_actions": top_actions,
+        "use_default_ignores": use_default_ignores,
+        "large_commit_strategy": large_commit_strategy,
+        "adaptive_mode": adaptive_mode,
+        "adaptive_baseline_artifact": str(adaptive_baseline_artifact.expanduser().resolve()) if adaptive_baseline_artifact else None,
+        "ignore_rules_applied": sorted(set(merged_ignore_globs)),
+    }
+    settings_fingerprint = _settings_fingerprint(settings)
+
     payload: dict[str, Any] = {
-        "schema_version": "1.2.0",
+        "schema_version": SCHEMA_VERSION,
         "summary": {
             "repo_path": str(repo_path) if include_repo_path else repo_path.name,
             "head_commit": head,
@@ -170,16 +344,18 @@ def analyze_repo(
             "total_commits": len(commits),
         },
         "settings": {
-            "min_churn_threshold": min_churn_threshold,
-            "include_authors": include_authors,
-            "include_repo_path": include_repo_path,
-            "include_commit_messages": include_commit_messages,
-            "max_commits": max_commits,
-            "max_files_per_commit": max_files_per_commit,
-            "timeout_seconds": timeout_seconds,
-            "top_actions": top_actions,
-            "use_default_ignores": use_default_ignores,
-            "large_commit_strategy": large_commit_strategy,
+            "min_churn_threshold": settings["min_churn_threshold"],
+            "include_authors": settings["include_authors"],
+            "include_repo_path": settings["include_repo_path"],
+            "include_commit_messages": settings["include_commit_messages"],
+            "max_commits": settings["max_commits"],
+            "max_files_per_commit": settings["max_files_per_commit"],
+            "timeout_seconds": settings["timeout_seconds"],
+            "top_actions": settings["top_actions"],
+            "use_default_ignores": settings["use_default_ignores"],
+            "large_commit_strategy": settings["large_commit_strategy"],
+            "adaptive_mode": settings["adaptive_mode"],
+            "adaptive_baseline_artifact": settings["adaptive_baseline_artifact"],
         },
         "notices": notices,
         "run_metadata": {
@@ -189,6 +365,16 @@ def analyze_repo(
             "truncated": truncated,
             "runtime_ms": 0,
             "ignore_rules_applied": sorted(set(merged_ignore_globs)),
+            "adaptive_precision": {
+                "mode": "disabled",
+                "strategy_version": ADAPTIVE_STRATEGY_VERSION,
+                "baseline_available": False,
+                "baseline_source": str(adaptive_baseline_artifact.expanduser().resolve()) if adaptive_baseline_artifact else None,
+                "baseline_reason": "adaptive_disabled",
+                "settings_fingerprint": settings_fingerprint,
+                "baseline_schema_version": None,
+                "baseline_head_commit": None,
+            },
         },
         "detectors": {
             "abandoned_structures": abandoned_structures(commits, min_churn_threshold),
@@ -197,12 +383,68 @@ def analyze_repo(
         },
         "base_metrics": compute_base_metrics(commits, include_authors, include_commit_messages),
         "dig_plan": [],
-        "actionability": {"top_actions": []},
+        "actionability": {"top_actions": [], "shadow_top_actions": [], "adaptive_changes": []},
         "errors": [],
     }
 
-    payload["dig_plan"] = build_dig_plan(payload, top_actions=max(top_actions, 10))
-    payload["actionability"]["top_actions"] = build_dig_plan(payload, top_actions=top_actions)
+    raw_plan = build_dig_plan(payload, top_actions=max(top_actions, 10))
+    raw_top_actions = raw_plan[:top_actions]
+    payload["dig_plan"] = raw_plan
+    payload["actionability"]["top_actions"] = raw_top_actions
+
+    if adaptive_mode != "disabled":
+        baseline_actions, baseline_state = _load_baseline_actions(
+            baseline_path=adaptive_baseline_artifact,
+            current_repo_path=repo_path,
+            settings_fingerprint=settings_fingerprint,
+            schema_version=SCHEMA_VERSION,
+            current_settings=settings,
+        )
+        adaptive_meta = payload["run_metadata"]["adaptive_precision"]
+        adaptive_meta["baseline_available"] = baseline_state["baseline_available"]
+        adaptive_meta["baseline_reason"] = baseline_state["baseline_reason"]
+        adaptive_meta["baseline_source"] = baseline_state["baseline_source"]
+        adaptive_meta["baseline_schema_version"] = baseline_state["baseline_schema_version"]
+        adaptive_meta["baseline_head_commit"] = baseline_state["baseline_head_commit"]
+
+        if not baseline_state["baseline_available"]:
+            adaptive_meta["mode"] = "learn"
+            notices.append(
+                _notice(
+                    "ADAPTIVE_BASELINE_FALLBACK",
+                    f"Adaptive baseline unavailable ({baseline_state['baseline_reason']}); using learn mode.",
+                )
+            )
+        else:
+            annotate_reasons = adaptive_mode == "adaptive"
+            ranked_top, adaptive_changes = rerank_top_actions(
+                raw_actions=raw_plan,
+                baseline_actions=baseline_actions,
+                top_actions=top_actions,
+                annotate_reasons=annotate_reasons,
+            )
+            payload["actionability"]["adaptive_changes"] = adaptive_changes
+
+            if adaptive_mode == "shadow":
+                adaptive_meta["mode"] = "shadow"
+                payload["actionability"]["shadow_top_actions"] = ranked_top
+                notices.append(
+                    _notice(
+                        "ADAPTIVE_SHADOW_MODE",
+                        "Adaptive shadow mode active; top_actions kept raw and shadow_top_actions contains adaptive ranking.",
+                    )
+                )
+            else:
+                adaptive_meta["mode"] = "adaptive"
+                payload["actionability"]["top_actions"] = ranked_top
+                notices.append(
+                    _notice(
+                        "ADAPTIVE_MODE_ACTIVE",
+                        "Adaptive mode active; top_actions were re-ranked against the baseline profile.",
+                    )
+                )
+
+    payload["run_metadata"]["adaptive_precision"]["settings_fingerprint"] = settings_fingerprint
     payload["run_metadata"]["runtime_ms"] = int((time.time() - start) * 1000)
 
     try:

@@ -2,6 +2,7 @@ from code_archaeology.metrics import compute_base_metrics
 from code_archaeology.models import Commit, FileChange
 from code_archaeology.metrics import abandoned_structures
 from code_archaeology.metrics import build_dig_plan
+from code_archaeology.metrics import rerank_top_actions
 from datetime import datetime, timezone, timedelta
 import pytest
 
@@ -123,3 +124,66 @@ def test_build_dig_plan_respects_requested_top_actions_above_ten() -> None:
 
     actions = build_dig_plan(payload, top_actions=12)
     assert len(actions) == 12
+
+
+def test_rerank_top_actions_is_deterministic_for_equal_scores() -> None:
+    raw_actions = [
+        {
+            "priority": "high",
+            "action": "review_temporal_coupling",
+            "target": "src/a.py <-> src/b.py",
+            "effort": "medium",
+            "expected_leverage": "high",
+            "rationale": "alpha",
+        },
+        {
+            "priority": "high",
+            "action": "review_temporal_coupling",
+            "target": "src/c.py <-> src/d.py",
+            "effort": "medium",
+            "expected_leverage": "high",
+            "rationale": "beta",
+        },
+    ]
+
+    ranked_a, changes_a = rerank_top_actions(raw_actions, baseline_actions=[], top_actions=2, annotate_reasons=True)
+    ranked_b, changes_b = rerank_top_actions(raw_actions, baseline_actions=[], top_actions=2, annotate_reasons=True)
+
+    assert ranked_a == ranked_b
+    assert changes_a == changes_b
+    assert all("adaptive_reason=" in row["rationale"] for row in ranked_a)
+
+
+def test_rerank_top_actions_tracks_promotions_and_demotions() -> None:
+    raw_actions = [
+        {
+            "priority": "high",
+            "action": "review_temporal_coupling",
+            "target": "src/known.py <-> src/known2.py",
+            "effort": "medium",
+            "expected_leverage": "high",
+            "rationale": "known",
+        },
+        {
+            "priority": "medium",
+            "action": "review_high_churn_file",
+            "target": "src/new.py",
+            "effort": "low",
+            "expected_leverage": "high",
+            "rationale": "new",
+        },
+    ]
+    baseline_actions = [
+        {
+            "priority": "high",
+            "action": "review_temporal_coupling",
+            "target": "src/known.py <-> src/known2.py",
+            "effort": "medium",
+            "expected_leverage": "high",
+            "rationale": "known",
+        }
+    ]
+
+    ranked, changes = rerank_top_actions(raw_actions, baseline_actions=baseline_actions, top_actions=1)
+    assert ranked[0]["target"] == "src/new.py"
+    assert len(changes) >= 1

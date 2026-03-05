@@ -66,7 +66,9 @@
         "timeout_seconds",
         "top_actions",
         "large_commit_strategy",
-        "use_default_ignores"
+        "use_default_ignores",
+        "adaptive_mode",
+        "adaptive_baseline_artifact"
       ],
       "properties": {
         "min_churn_threshold": {
@@ -107,6 +109,20 @@
         },
         "use_default_ignores": {
           "type": "boolean"
+        },
+        "adaptive_mode": {
+          "type": "string",
+          "enum": [
+            "disabled",
+            "shadow",
+            "adaptive"
+          ]
+        },
+        "adaptive_baseline_artifact": {
+          "type": [
+            "string",
+            "null"
+          ]
         }
       }
     },
@@ -138,7 +154,8 @@
         "schema_path",
         "truncated",
         "runtime_ms",
-        "ignore_rules_applied"
+        "ignore_rules_applied",
+        "adaptive_precision"
       ],
       "properties": {
         "tool": {
@@ -162,6 +179,61 @@
           "type": "array",
           "items": {
             "type": "string"
+          }
+        },
+        "adaptive_precision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mode",
+            "strategy_version",
+            "baseline_available",
+            "baseline_source",
+            "baseline_reason",
+            "settings_fingerprint",
+            "baseline_schema_version",
+            "baseline_head_commit"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "disabled",
+                "learn",
+                "shadow",
+                "adaptive"
+              ]
+            },
+            "strategy_version": {
+              "type": "string"
+            },
+            "baseline_available": {
+              "type": "boolean"
+            },
+            "baseline_source": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "baseline_reason": {
+              "type": "string"
+            },
+            "settings_fingerprint": {
+              "type": "string"
+            },
+            "baseline_schema_version": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "baseline_head_commit": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
           }
         }
       }
@@ -454,13 +526,60 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "top_actions"
+        "top_actions",
+        "shadow_top_actions",
+        "adaptive_changes"
       ],
       "properties": {
         "top_actions": {
           "type": "array",
           "items": {
             "$ref": "#/properties/dig_plan/items"
+          }
+        },
+        "shadow_top_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/properties/dig_plan/items"
+          }
+        },
+        "adaptive_changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "action",
+              "target",
+              "original_position",
+              "new_position",
+              "reason"
+            ],
+            "properties": {
+              "action": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              },
+              "original_position": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "new_position": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string"
+              }
+            }
           }
         }
       }

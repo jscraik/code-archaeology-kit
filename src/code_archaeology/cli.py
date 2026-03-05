@@ -64,6 +64,17 @@ def main() -> int:
     scan.add_argument("--max-commits", type=int, default=15000)
     scan.add_argument("--max-files-per-commit", type=int, default=40)
     scan.add_argument(
+        "--adaptive-mode",
+        choices=["disabled", "shadow", "adaptive"],
+        default="disabled",
+        help="Adaptive ranking mode: disabled keeps raw top actions, shadow computes adaptive ranking without replacing top_actions, adaptive replaces top_actions.",
+    )
+    scan.add_argument(
+        "--adaptive-baseline-artifact",
+        type=Path,
+        help="Optional path to baseline archaeology.json artifact. Defaults to <output-dir>/archaeology.json when adaptive mode is enabled.",
+    )
+    scan.add_argument(
         "--large-commit-strategy",
         choices=["cap", "skip"],
         default="cap",
@@ -153,6 +164,16 @@ def main() -> int:
                 use_default_ignores=not args.no_ignore_defaults,
                 top_actions=args.top_actions,
                 large_commit_strategy=args.large_commit_strategy,
+                adaptive_mode=args.adaptive_mode,
+                adaptive_baseline_artifact=(
+                    args.adaptive_baseline_artifact
+                    if args.adaptive_baseline_artifact is not None
+                    else (
+                        args.output_dir.expanduser().resolve() / "archaeology.json"
+                        if args.adaptive_mode != "disabled"
+                        else None
+                    )
+                ),
             )
             json_path, md_path = write_payload(payload, args.output_dir, args.format, args.force)
             if args.share_snippet:

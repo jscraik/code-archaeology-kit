@@ -7,7 +7,10 @@ from typing import Any
 def render_report(payload: dict[str, Any]) -> str:
     summary = payload["summary"]
     ignore_rules = payload["run_metadata"]["ignore_rules_applied"]
+    adaptive_precision = payload["run_metadata"].get("adaptive_precision", {})
     top_actions = payload["actionability"]["top_actions"]
+    shadow_top_actions = payload["actionability"].get("shadow_top_actions", [])
+    adaptive_changes = payload["actionability"].get("adaptive_changes", [])
     notices = payload.get("notices", [])
 
     lines = [
@@ -19,6 +22,12 @@ def render_report(payload: dict[str, Any]) -> str:
         f"- Window: last {summary['since_days']} days",
         f"- Total commits: {summary['total_commits']}",
         f"- Generated (UTC): {summary['generated_at_utc']}",
+        (
+            f"- Adaptive mode: `{adaptive_precision.get('mode', 'disabled')}` "
+            f"(reason: `{adaptive_precision.get('baseline_reason', 'adaptive_disabled')}`)"
+            if isinstance(adaptive_precision, dict) and adaptive_precision
+            else "- Adaptive mode: `disabled` (reason: `adaptive_disabled`)"
+        ),
         "",
         "## Notices",
     ]
@@ -28,6 +37,20 @@ def render_report(payload: dict[str, Any]) -> str:
             lines.append(f"- `{notice.get('code', 'NOTICE')}`: {notice.get('message', '')}")
     else:
         lines.append("- (none)")
+    if shadow_top_actions:
+        lines.extend(["", "### Shadow top actions"])
+        for action in shadow_top_actions[:5]:
+            lines.append(
+                f"- [{action['priority']}] **{action['action']}** `{action['target']}` "
+                f"(effort={action['effort']}, leverage={action['expected_leverage']}) — {action['rationale']}"
+            )
+    if adaptive_changes:
+        lines.extend(["", "### Adaptive ranking changes"])
+        for change in adaptive_changes[:10]:
+            lines.append(
+                f"- `{change.get('target', '')}` {change.get('original_position')} → {change.get('new_position')} "
+                f"({change.get('reason', 'adaptive_change')})"
+            )
 
     lines.extend([
         "",
@@ -107,6 +130,7 @@ def render_share_snippet(payload: dict[str, Any]) -> str:
     """
     summary = payload["summary"]
     top_actions = payload.get("actionability", {}).get("top_actions", [])[:5]
+    adaptive_precision = payload.get("run_metadata", {}).get("adaptive_precision", {})
 
     pairs = payload.get("detectors", {}).get("temporal_coupling", {}).get("pairs", [])
     coupling_counts: dict[str, int] = defaultdict(int)
@@ -120,6 +144,7 @@ def render_share_snippet(payload: dict[str, Any]) -> str:
         f"- Repo: `{summary.get('repo_path', '')}`",
         f"- Window: last {summary.get('since_days', '')} days",
         f"- Head: `{str(summary.get('head_commit', ''))[:7]}`",
+        f"- Adaptive mode: `{adaptive_precision.get('mode', 'disabled')}`",
         "",
         "### Top actions",
     ]
