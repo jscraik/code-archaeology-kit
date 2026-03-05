@@ -1,7 +1,7 @@
 ---
 title: feat: Add adaptive baseline precision re-ranking
 type: feat
-status: active
+status: completed
 date: 2026-03-04
 origin: docs/brainstorms/2026-03-04-adaptive-signal-precision-brainstorm.md
 ---
