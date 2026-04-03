@@ -10,3 +10,119 @@ echo "[codex] setup: /Users/jamiecraik/dev/config"
 
 echo "[codex] no known setup step for this repository"
 '''
+
+[[actions]]
+name = "Tools"
+icon = "tool"
+
+[[actions]]
+name = "Run"
+icon = "run"
+
+[[actions]]
+name = "Debug"
+icon = "debug"
+
+[[actions]]
+name = "Test"
+icon = "test"
+
+[[actions]]
+name = "Prek"
+icon = "test"
+
+[[actions]]
+name = "Diagram"
+icon = "tool"
+
+[[actions]]
+name = "Ralph"
+icon = "debug"
+
+[[actions]]
+name = "Mise"
+icon = "tool"
+
+[[actions]]
+name = "Vale"
+icon = "debug"
+
+[[actions]]
+name = "Argos"
+icon = "test"
+
+[[actions]]
+name = "Cosign"
+icon = "debug"
+
+[[actions]]
+name = "Cloudflared"
+icon = "run"
+
+[[actions]]
+name = "Vitest"
+icon = "test"
+
+[[actions]]
+name = "Ruff"
+icon = "debug"
+
+[[actions]]
+name = "ESLint"
+icon = "debug"
+
+[[actions]]
+name = "Agent Browser"
+icon = "tool"
+
+[[actions]]
+name = "Agentation"
+icon = "tool"
+
+[[actions]]
+name = "Mermaid CLI"
+icon = "tool"
+
+[[actions]]
+name = "MarkdownLint"
+icon = "debug"
+
+[[actions]]
+name = "Wrangler"
+icon = "run"
+
+[[actions]]
+name = "1Password"
+icon = "tool"
+
+[[actions]]
+name = "Beautiful Mermaid"
+icon = "tool"
+
+[[actions]]
+name = "Auth0"
+icon = "tool"
+
+[[actions]]
+name = "Semgrep"
+icon = "debug"
+
+[[actions]]
+name = "Semver"
+icon = "tool"
+
+[[actions]]
+name = "Trivy"
+icon = "debug"
+
+[[actions]]
+name = "Gitleaks"
+icon = "debug"
+
+[[actions]]
+name = "Research"
+icon = "tool"
+
+[[actions]]
+name = "WSearch"
+icon = "tool"
