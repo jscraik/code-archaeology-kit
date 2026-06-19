@@ -29,6 +29,9 @@
     "url": "https://github.com/jscraik/code-archaeology-kit/issues"
   },
   "homepage": "https://github.com/jscraik/code-archaeology-kit#readme",
+  "overrides": {
+    "smol-toml": "1.6.1"
+  },
   "devDependencies": {
     "markdownlint-cli2": "^0.22.1"
   }
