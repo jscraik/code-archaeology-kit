@@ -13,7 +13,7 @@ for candidate in "$HOME/.local/share/mise/shims" "$HOME/.local/bin" "/opt/homebr
 done
 export PATH
 
-if command -v mise >/dev/null 2>&1; then
+if command -v mise >/dev/null 2>&1 && { [[ -f .mise.toml ]] || [[ -f mise.toml ]]; }; then
   mise trust --yes .mise.toml || true
   mise install
 fi
@@ -58,7 +58,7 @@ for candidate in "$HOME/.local/share/mise/shims" "$HOME/.local/bin" "/opt/homebr
 done
 export PATH
 
-if command -v mise >/dev/null 2>&1; then
+if command -v mise >/dev/null 2>&1 && { [[ -f .mise.toml ]] || [[ -f mise.toml ]]; }; then
   mise trust --yes .mise.toml || true
   mise install
 fi
